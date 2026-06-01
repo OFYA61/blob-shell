@@ -89,7 +89,18 @@ fn main() {
         }
 
         if let Some(command) = path.get_command(command) {
-            println!("Executing: {:?}", command);
+            let args = args.trim().split_whitespace().collect::<Vec<&str>>();
+
+            let mut command = std::process::Command::new(command);
+            if args.len() > 0 {
+                command.args(args);
+            }
+            command
+                .spawn()
+                .expect("Failed to execute process")
+                .wait()
+                .expect("Failed to wait on command");
+
             continue;
         }
 
