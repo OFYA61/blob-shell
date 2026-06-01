@@ -88,14 +88,14 @@ fn main() {
             continue;
         }
 
-        if let Some(command) = path.get_command(command) {
+        if let Some(_) = path.get_command(command) {
             let args = args.trim().split_whitespace().collect::<Vec<&str>>();
 
-            let mut command = std::process::Command::new(command);
+            let mut child = std::process::Command::new(command);
             if args.len() > 0 {
-                command.args(args);
+                child.args(args);
             }
-            command
+            child
                 .spawn()
                 .expect("Failed to execute process")
                 .wait()
