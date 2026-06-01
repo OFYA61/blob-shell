@@ -15,8 +15,15 @@ fn main() {
 
         if command == "exit" {
             break;
-        } else if command.starts_with("echo") {
+        } else if command.starts_with("echo ") {
             println!("{}", &command[5..]);
+        } else if command.starts_with("type ") {
+            let arg = &command[5..];
+            if arg == "exit" || arg == "echo" || arg == "type" {
+                println!("{arg} is a shell builtin");
+            } else {
+                println!("{arg}: not found");
+            }
         } else {
             println!("{}: command not found", command);
         }
