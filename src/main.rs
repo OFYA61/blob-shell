@@ -11,11 +11,12 @@ fn main() {
             .read_line(&mut command)
             .expect("Failed to read command");
 
-        match command.trim() {
-            "exit" => break,
-            _ => {}
-        };
+        command = command.trim().to_string();
 
-        println!("{}: command not found", command.trim());
+        if command == "exit" {
+            break;
+        }
+
+        println!("{}: command not found", command);
     }
 }
