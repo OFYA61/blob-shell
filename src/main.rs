@@ -1,6 +1,24 @@
 use std::io;
 use std::io::Write;
 
+#[derive(Debug)]
+enum Builtin {
+    Echo,
+    Exit,
+    Type,
+}
+
+impl Builtin {
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "echo" => Some(Builtin::Echo),
+            "exit" => Some(Builtin::Exit),
+            "type" => Some(Builtin::Type),
+            _ => None,
+        }
+    }
+}
+
 fn main() {
     loop {
         print!("$ ");
@@ -13,19 +31,25 @@ fn main() {
 
         command = command.trim().to_string();
 
-        if command == "exit" {
-            break;
-        } else if command.starts_with("echo ") {
-            println!("{}", &command[5..]);
-        } else if command.starts_with("type ") {
-            let arg = &command[5..];
-            if arg == "exit" || arg == "echo" || arg == "type" {
-                println!("{arg} is a shell builtin");
-            } else {
-                println!("{arg}: not found");
-            }
-        } else {
+        let (command, args) = command.split_once(' ').unwrap_or((&command, ""));
+
+        let builtin = Builtin::from_str(command);
+        if builtin.is_none() {
             println!("{}: command not found", command);
+            continue;
         }
+        let builtin = unsafe { builtin.unwrap_unchecked() };
+
+        match builtin {
+            Builtin::Echo => println!("{args}"),
+            Builtin::Exit => break,
+            Builtin::Type => {
+                if Builtin::from_str(args).is_some() {
+                    println!("{} is a shell builtin", args);
+                } else {
+                    println!("{args}: not found");
+                }
+            }
+        };
     }
 }
