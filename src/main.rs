@@ -41,7 +41,7 @@ impl Path {
     fn get_command(&self, command: &str) -> Option<std::path::PathBuf> {
         for path in &self.paths {
             let full_path = path.join(command);
-            if full_path.is_file() {
+            if full_path.is_file() || full_path.is_symlink() {
                 return Some(full_path);
             }
         }
