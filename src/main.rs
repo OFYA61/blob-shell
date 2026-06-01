@@ -25,12 +25,13 @@ struct Path {
 
 impl Path {
     fn init() -> Self {
-        let paths = std::env::var("PATH")
+        let mut paths: Vec<std::path::PathBuf> = std::env::var("PATH")
             .unwrap_or("".into())
             .split(':')
             .map(|s| std::path::Path::new(s).to_owned())
             .filter(|s| s.is_dir())
             .collect();
+        paths.sort();
 
         Self { paths }
     }
