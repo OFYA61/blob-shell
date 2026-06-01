@@ -1,4 +1,3 @@
-use std::io;
 use std::io::Write;
 
 #[derive(Debug)]
@@ -19,13 +18,43 @@ impl Builtin {
     }
 }
 
+#[derive(Debug)]
+struct Path {
+    paths: Vec<std::path::PathBuf>,
+}
+
+impl Path {
+    fn init() -> Self {
+        let paths = std::env::var("PATH")
+            .unwrap_or("".into())
+            .split(':')
+            .map(|s| std::path::Path::new(s).to_owned())
+            .filter(|s| s.is_dir())
+            .collect();
+
+        Self { paths }
+    }
+
+    fn get_command(&self, command: &str) -> Option<std::path::PathBuf> {
+        for path in &self.paths {
+            let full_path = path.join(command);
+            if full_path.is_file() {
+                return Some(full_path);
+            }
+        }
+        None
+    }
+}
+
 fn main() {
+    let path = Path::init();
+
     loop {
         print!("$ ");
-        io::stdout().flush().unwrap();
+        std::io::stdout().flush().unwrap();
 
         let mut command = String::new();
-        io::stdin()
+        std::io::stdin()
             .read_line(&mut command)
             .expect("Failed to read command");
 
@@ -33,23 +62,28 @@ fn main() {
 
         let (command, args) = command.split_once(' ').unwrap_or((&command, ""));
 
-        let builtin = Builtin::from_str(command);
-        if builtin.is_none() {
-            println!("{}: command not found", command);
+        if let Some(builtin) = Builtin::from_str(command) {
+            match builtin {
+                Builtin::Echo => println!("{args}"),
+                Builtin::Exit => break,
+                Builtin::Type => {
+                    if Builtin::from_str(args).is_some() {
+                        println!("{} is a shell builtin", args);
+                    } else if let Some(command) = path.get_command(args) {
+                        println!("{} is {}", args, command.to_str().unwrap_or(""));
+                    } else {
+                        println!("{args}: not found");
+                    }
+                }
+            };
             continue;
         }
-        let builtin = unsafe { builtin.unwrap_unchecked() };
 
-        match builtin {
-            Builtin::Echo => println!("{args}"),
-            Builtin::Exit => break,
-            Builtin::Type => {
-                if Builtin::from_str(args).is_some() {
-                    println!("{} is a shell builtin", args);
-                } else {
-                    println!("{args}: not found");
-                }
-            }
-        };
+        if let Some(command) = path.get_command(command) {
+            println!("Executing: {:?}", command);
+            continue;
+        }
+
+        println!("{}: command not found", command);
     }
 }
