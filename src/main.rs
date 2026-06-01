@@ -25,15 +25,17 @@ struct Path {
 
 impl Path {
     fn init() -> Self {
-        let mut paths: Vec<std::path::PathBuf> = std::env::var("PATH")
-            .unwrap_or("".into())
-            .split(':')
-            .map(|s| std::path::Path::new(s).to_owned())
-            .filter(|s| s.is_dir())
-            .collect();
-        paths.sort();
+        let path_var = std::env::var("PATH");
+        if path_var.is_err() {
+            return Self { paths: vec![] };
+        }
+        let path_var = unsafe { path_var.unwrap_unchecked() };
 
-        Self { paths }
+        Self {
+            paths: std::env::split_paths(&path_var)
+                .filter(|p| p.is_dir())
+                .collect(),
+        }
     }
 
     fn get_command(&self, command: &str) -> Option<std::path::PathBuf> {
