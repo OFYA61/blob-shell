@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug)]
 enum Builtin {
@@ -42,7 +43,12 @@ impl Path {
         for path in &self.paths {
             let full_path = path.join(command);
             if full_path.is_file() || full_path.is_symlink() {
-                return Some(full_path);
+                if let Ok(metadata) = std::fs::metadata(&full_path) {
+                    // Check executable permissions
+                    if metadata.permissions().mode() & 0o111 != 0 {
+                        return Some(full_path);
+                    }
+                }
             }
         }
         None
