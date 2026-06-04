@@ -5,6 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 enum Builtin {
     Echo,
     Exit,
+    Pwd,
     Type,
 }
 
@@ -13,6 +14,7 @@ impl Builtin {
         match s {
             "echo" => Some(Builtin::Echo),
             "exit" => Some(Builtin::Exit),
+            "pwd" => Some(Builtin::Pwd),
             "type" => Some(Builtin::Type),
             _ => None,
         }
@@ -75,6 +77,12 @@ fn main() {
             match builtin {
                 Builtin::Echo => println!("{args}"),
                 Builtin::Exit => break,
+                Builtin::Pwd => println!(
+                    "{}",
+                    std::env::current_dir()
+                        .expect("Failed to get current dir")
+                        .display()
+                ),
                 Builtin::Type => {
                     if Builtin::from_str(args).is_some() {
                         println!("{} is a shell builtin", args);
