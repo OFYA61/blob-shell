@@ -5,7 +5,10 @@ use std::os::unix::fs::PermissionsExt;
 enum Builtin {
     Echo,
     Exit,
+
+    Cd,
     Pwd,
+
     Type,
 }
 
@@ -14,7 +17,10 @@ impl Builtin {
         match s {
             "echo" => Some(Builtin::Echo),
             "exit" => Some(Builtin::Exit),
+
+            "cd" => Some(Builtin::Cd),
             "pwd" => Some(Builtin::Pwd),
+
             "type" => Some(Builtin::Type),
             _ => None,
         }
@@ -22,11 +28,16 @@ impl Builtin {
 }
 
 #[derive(Debug)]
-struct Path {
+enum ChangeDirError {
+    DoesNotExist,
+}
+
+#[derive(Debug)]
+struct Env {
     paths: Vec<std::path::PathBuf>,
 }
 
-impl Path {
+impl Env {
     fn init() -> Self {
         let path_var = std::env::var("PATH");
         if path_var.is_err() {
@@ -55,10 +66,22 @@ impl Path {
         }
         None
     }
+
+    fn get_current_directory(&self) -> String {
+        std::env::current_dir()
+            .expect("Failed to get current directory")
+            .to_str()
+            .expect("Failed to parse to string")
+            .to_owned()
+    }
+
+    fn change_directory(&mut self, new_dir: &str) -> Result<(), ChangeDirError> {
+        std::env::set_current_dir(new_dir).map_err(|_| ChangeDirError::DoesNotExist)
+    }
 }
 
 fn main() {
-    let path = Path::init();
+    let mut env = Env::init();
 
     loop {
         print!("$ ");
@@ -77,16 +100,21 @@ fn main() {
             match builtin {
                 Builtin::Echo => println!("{args}"),
                 Builtin::Exit => break,
-                Builtin::Pwd => println!(
-                    "{}",
-                    std::env::current_dir()
-                        .expect("Failed to get current dir")
-                        .display()
-                ),
+
+                Builtin::Cd => match env.change_directory(args) {
+                    Err(err) => match err {
+                        ChangeDirError::DoesNotExist => {
+                            println!("cd: {args}: No such file or directory")
+                        }
+                    },
+                    _ => {}
+                },
+                Builtin::Pwd => println!("{}", env.get_current_directory()),
+
                 Builtin::Type => {
                     if Builtin::from_str(args).is_some() {
                         println!("{} is a shell builtin", args);
-                    } else if let Some(command) = path.get_command(args) {
+                    } else if let Some(command) = env.get_command(args) {
                         println!("{} is {}", args, command.to_str().unwrap_or(""));
                     } else {
                         println!("{args}: not found");
@@ -96,7 +124,7 @@ fn main() {
             continue;
         }
 
-        if let Some(_) = path.get_command(command) {
+        if let Some(_) = env.get_command(command) {
             let args = args.trim().split_whitespace().collect::<Vec<&str>>();
 
             let mut child = std::process::Command::new(command);
