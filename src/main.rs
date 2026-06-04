@@ -34,18 +34,24 @@ enum ChangeDirError {
 
 #[derive(Debug)]
 struct Env {
+    home: String,
     paths: Vec<std::path::PathBuf>,
 }
 
 impl Env {
     fn init() -> Self {
+        let home = std::env::var("HOME").expect("Failed to get home environment variable");
         let path_var = std::env::var("PATH");
         if path_var.is_err() {
-            return Self { paths: vec![] };
+            return Self {
+                home,
+                paths: vec![],
+            };
         }
         let path_var = unsafe { path_var.unwrap_unchecked() };
 
         Self {
+            home,
             paths: std::env::split_paths(&path_var)
                 .filter(|p| p.is_dir())
                 .collect(),
@@ -76,7 +82,14 @@ impl Env {
     }
 
     fn change_directory(&mut self, new_dir: &str) -> Result<(), ChangeDirError> {
-        std::env::set_current_dir(new_dir).map_err(|_| ChangeDirError::DoesNotExist)
+        let dir: String;
+        if new_dir.starts_with("~") {
+            dir = new_dir.replace("~", &self.home);
+        } else {
+            dir = new_dir.to_owned();
+        }
+
+        std::env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
     }
 }
 
