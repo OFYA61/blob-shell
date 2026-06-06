@@ -127,7 +127,12 @@ fn main() {
             .read_line(&mut command_raw)
             .expect("Failed to read user input");
 
-        let parsed_command = parser::parse(&command_raw);
+        let command_raw = command_raw.trim();
+        if command_raw.is_empty() {
+            continue;
+        }
+
+        let parsed_command = parser::parse(command_raw);
         if parsed_command.is_err() {
             continue;
         }

@@ -3,13 +3,14 @@ pub enum TokenKind {
     Normal,
     SingleQuoteStr,
     DoubleQuoteStr,
+    Joined,
 }
 
 impl TokenKind {
     #[inline]
-    fn is_quote_str(&self) -> bool {
+    fn can_concat(&self) -> bool {
         match self {
-            TokenKind::SingleQuoteStr | TokenKind::DoubleQuoteStr => true,
+            TokenKind::SingleQuoteStr | TokenKind::DoubleQuoteStr | TokenKind::Joined => true,
             _ => false,
         }
     }
@@ -45,9 +46,10 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
     let mut tokens: Vec<Token> = Vec::new();
 
     let mut token_start: usize = 0;
-    let mut c_iter = command_raw.chars().enumerate().peekable();
+    let mut index = 0;
+    while index < command_raw.len() {
+        let c = unsafe { command_raw.chars().nth(index).unwrap_unchecked() };
 
-    while let Some((index, c)) = c_iter.next() {
         if c.is_whitespace() {
             let lexeme = &command_raw[token_start..index];
             if !lexeme.is_empty() {
@@ -59,96 +61,96 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
                 ));
             }
             token_start = index + 1;
+            index += 1;
             continue;
         }
 
-        if c == '\'' {
+        if c == '\'' || c == '"' {
+            if index > token_start {
+                let lexeme = &command_raw[token_start..index];
+                if !lexeme.is_empty() {
+                    tokens.push(Token::new(
+                        lexeme.to_owned(),
+                        token_start,
+                        index - 1,
+                        TokenKind::Normal,
+                    ));
+                }
+                token_start = index;
+                continue;
+            }
+
+            let token_kind = match c {
+                '\'' => TokenKind::SingleQuoteStr,
+                '"' => TokenKind::DoubleQuoteStr,
+                _ => unreachable!(),
+            };
+
+            let closing_char = c;
             let mut found = false;
-            while let Some((index, c)) = c_iter.next() {
-                if c == '\'' {
+            index += 1;
+            while index < command_raw.len() {
+                let c = unsafe { command_raw.chars().nth(index).unwrap_unchecked() };
+
+                if c == closing_char {
                     let lexeme = &command_raw[token_start + 1..index];
-                    if !lexeme.is_empty() {
-                        tokens.push(Token::new(
-                            lexeme.to_owned(),
-                            token_start,
-                            index,
-                            TokenKind::SingleQuoteStr,
-                        ));
-                    }
+                    tokens.push(Token::new(
+                        lexeme.to_owned(),
+                        token_start,
+                        index,
+                        token_kind,
+                    ));
                     found = true;
                     token_start = index + 1;
                     break;
                 }
+                index += 1;
             }
             if !found {
-                eprintln!("Could not find closing \"'\" character");
+                eprintln!("Could not find closing `{closing_char}` character");
                 return Err(());
             }
         }
 
-        if c == '"' {
-            let mut found = false;
-            while let Some((index, c)) = c_iter.next() {
-                if c == '"' {
-                    let lexeme = &command_raw[token_start + 1..index];
-                    if !lexeme.is_empty() {
-                        tokens.push(Token::new(
-                            lexeme.to_owned(),
-                            token_start,
-                            index,
-                            TokenKind::DoubleQuoteStr,
-                        ));
-                    }
-                    found = true;
-                    token_start = index + 1;
-                    break;
-                }
-            }
-            if !found {
-                eprintln!("Could not find closing \"'\" character");
-                return Err(());
-            }
-        }
+        index += 1;
     }
 
     let lexeme = &command_raw[token_start..command_raw.len()];
-    if !lexeme.is_empty() {
-        tokens.push(Token::new(
-            lexeme.to_owned(),
-            token_start,
-            command_raw.len() - 1,
-            TokenKind::DoubleQuoteStr,
-        ));
-    }
+    tokens.push(Token::new(
+        lexeme.to_owned(),
+        token_start,
+        command_raw.len() - 1,
+        TokenKind::Normal,
+    ));
 
     Ok(tokens)
 }
 
 fn join_concatenated_strings(tokens: &mut Vec<Token>) {
-    let mut i = 0;
+    let mut i = 1;
     while i < tokens.len() {
         let token = &tokens[i];
         let mut new_token = None;
 
-        if token.kind.is_quote_str() {
-            if let Some(next_token) = tokens.get(i + 1)
-                && token.end + 1 == next_token.start
-            {
-                let mut new_lexeme = token.lexeme.clone();
-                new_lexeme.push_str(next_token.lexeme.as_str());
-                new_token = Some(Token::new(
-                    new_lexeme,
-                    token.start,
-                    next_token.end,
-                    TokenKind::Normal,
-                ));
-            }
+        if let Some(prev_token) = tokens.get(i - 1)
+            && (prev_token.kind.can_concat() || token.kind.can_concat())
+            && prev_token.end + 1 == token.start
+        {
+            let mut new_lexeme = prev_token.lexeme.clone();
+            new_lexeme.push_str(token.lexeme.as_str());
+            new_token = Some(Token::new(
+                new_lexeme,
+                prev_token.start,
+                token.end,
+                TokenKind::Joined,
+            ));
         }
 
         if let Some(new_token) = new_token {
-            tokens.remove(i + 1);
             tokens.remove(i);
-            tokens.insert(i, new_token);
+            tokens.remove(i - 1);
+            tokens.insert(i - 1, new_token);
+            i -= 1;
         }
 
         i += 1;
