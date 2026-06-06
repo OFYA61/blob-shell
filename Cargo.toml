@@ -3,6 +3,6 @@ name = "blob-shell"
 version = "0.1.0"
 authors = ["OFYA61 <ahamzaaydin.py@gmail.com>"]
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.96"
 
 [dependencies]
