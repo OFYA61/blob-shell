@@ -62,3 +62,14 @@ echo 'world     test' 'shell''hello' example''script
         r#"world     test shellhello examplescript"#,
     ));
 }
+
+#[test]
+fn test_executable_in_quotes() {
+    run_shell(
+        r#"
+        "echo" hello world
+        "#,
+    )
+    .success()
+    .stdout(predicate::str::contains("hello world"));
+}

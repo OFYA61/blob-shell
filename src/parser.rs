@@ -1,5 +1,3 @@
-use predicates::str::contains;
-
 #[derive(Debug, Eq, PartialEq)]
 pub enum TokenKind {
     Identifier,
