@@ -1,3 +1,5 @@
+use predicates::str::contains;
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum TokenKind {
     Identifier,
@@ -90,10 +92,27 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
             }
 
             let closing_char = c;
+            let enable_escape_chars = if c == '"' { true } else { false };
             let mut found = false;
             index += 1;
             while index < command_raw.len() {
                 let c = get_char!(index);
+
+                if c == '\\' && enable_escape_chars {
+                    index += 1;
+                    if let Some(c) = command_raw.chars().nth(index) {
+                        if "\"\\".contains(c) {
+                            lexeme.push(c);
+                        } else {
+                            lexeme.push('\\');
+                            lexeme.push(c);
+                        }
+                        index += 1;
+                    } else {
+                        lexeme.push('\\');
+                    }
+                    continue;
+                }
 
                 if c == closing_char {
                     tokens.push(Token::new(

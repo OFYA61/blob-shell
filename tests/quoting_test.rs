@@ -1,44 +1,64 @@
 mod common;
 
-use predicates::prelude::*;
-
 use self::common::run_shell;
+use predicates::prelude::*;
 
 #[test]
 fn test_backslash_outside_quotes() {
-    run_shell("echo hello\\ \\ \\ \\ \\ \\ example\necho test\\nscript\n")
-        .success()
-        .stdout(predicate::str::contains("hello      example"))
-        .stdout(predicate::str::contains("testnscript"));
+    // With raw strings, we type exactly what the shell receives: \ followed by a space
+    run_shell(
+        r#"echo hello\ \ \ \ \ \ example
+echo test\nscript
+"#,
+    )
+    .success()
+    .stdout(predicate::str::contains(r#"hello      example"#))
+    .stdout(predicate::str::contains(r#"testnscript"#));
 }
 
 #[test]
 fn test_backslash_inside_single_quotes() {
-    run_shell("echo 'multiple\\\\slashes'")
+    // No more quadruple backslashes!
+    run_shell(r#"echo 'multiple\\slashes'"#)
         .success()
-        .stdout(predicate::str::contains("multiple\\\\slashes"));
+        .stdout(predicate::str::contains(r#"multiple\\slashes"#));
 }
+
 #[test]
 fn test_backslash_inside_double_quotes() {
-    run_shell("echo \"multiple\\\\slashes'\"")
+    let stdin_input = r#"echo "just'one'\\n'backslash"
+echo "inside\"literal_quote."outside\"
+exit
+"#;
+
+    run_shell(stdin_input)
         .success()
-        .stdout(predicate::str::contains("multiple\\\\slashes"));
+        .stdout(predicate::str::contains(r#"just'one'\n'backslash"#))
+        .stdout(predicate::str::contains(r#"inside"literal_quote.outside""#));
 }
 
 #[test]
 fn test_double_quotes() {
-    run_shell("echo \"script example\"\necho \"example  shell\"  \"hello\"\"script\"\n")
-        .success()
-        .stdout(predicate::str::contains("script example"))
-        .stdout(predicate::str::contains("example  shell helloscript"));
+    run_shell(
+        r#"echo "script example"
+echo "example  shell"  "hello""script"
+"#,
+    )
+    .success()
+    .stdout(predicate::str::contains(r#"script example"#))
+    .stdout(predicate::str::contains(r#"example  shell helloscript"#));
 }
 
 #[test]
 fn test_single_quotes() {
-    run_shell("echo 'hello example'\necho 'world     test' 'shell''hello' example''script\n")
-        .success()
-        .stdout(predicate::str::contains("hello example"))
-        .stdout(predicate::str::contains(
-            "world     test shellhello examplescript",
-        ));
+    run_shell(
+        r#"echo 'hello example'
+echo 'world     test' 'shell''hello' example''script
+"#,
+    )
+    .success()
+    .stdout(predicate::str::contains(r#"hello example"#))
+    .stdout(predicate::str::contains(
+        r#"world     test shellhello examplescript"#,
+    ));
 }
