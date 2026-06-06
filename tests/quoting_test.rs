@@ -13,6 +13,13 @@ fn test_backslash_outside_quotes() {
 }
 
 #[test]
+fn test_backslash_inside_single_quotes() {
+    run_shell("echo 'multiple\\\\slashes'\necho'")
+        .success()
+        .stdout(predicate::str::contains("multiple\\\\slashes"));
+}
+
+#[test]
 fn test_double_quotes() {
     run_shell("echo \"script example\"\necho \"example  shell\"  \"hello\"\"script\"\n")
         .success()
