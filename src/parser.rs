@@ -1,16 +1,14 @@
 #[derive(Debug, Eq, PartialEq)]
 pub enum TokenKind {
-    Normal,
-    SingleQuoteStr,
-    DoubleQuoteStr,
-    Joined,
+    Identifier,
+    StringLiteral,
 }
 
 impl TokenKind {
     #[inline]
     fn can_concat(&self) -> bool {
         match self {
-            TokenKind::SingleQuoteStr | TokenKind::DoubleQuoteStr | TokenKind::Joined => true,
+            TokenKind::StringLiteral => true,
             _ => false,
         }
     }
@@ -43,84 +41,90 @@ pub fn parse(command_raw: &str) -> Result<Vec<Token>, ()> {
 }
 
 fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
+    macro_rules! get_char {
+        ($index:expr) => {
+            unsafe { command_raw.chars().nth($index).unwrap_unchecked() }
+        };
+    }
+
     let mut tokens: Vec<Token> = Vec::new();
 
     let mut token_start: usize = 0;
     let mut index = 0;
+    let mut lexeme = String::new();
     while index < command_raw.len() {
-        let c = unsafe { command_raw.chars().nth(index).unwrap_unchecked() };
+        let c = get_char!(index);
 
         if c.is_whitespace() {
-            let lexeme = &command_raw[token_start..index];
             if !lexeme.is_empty() {
                 tokens.push(Token::new(
-                    lexeme.to_owned(),
+                    lexeme.clone(),
                     token_start,
                     index - 1,
-                    TokenKind::Normal,
+                    TokenKind::Identifier,
                 ));
             }
             token_start = index + 1;
+            lexeme.clear();
+        } else if c == '\\' {
             index += 1;
-            continue;
-        }
-
-        if c == '\'' || c == '"' {
+            if let Some(c) = command_raw.chars().nth(index) {
+                lexeme.push(c);
+            } else {
+                eprintln!("Expected escape character");
+                return Err(());
+            }
+        } else if c == '\'' || c == '"' {
             if index > token_start {
-                let lexeme = &command_raw[token_start..index];
                 if !lexeme.is_empty() {
                     tokens.push(Token::new(
-                        lexeme.to_owned(),
+                        lexeme.clone(),
                         token_start,
                         index - 1,
-                        TokenKind::Normal,
+                        TokenKind::Identifier,
                     ));
                 }
                 token_start = index;
+                lexeme.clear();
                 continue;
             }
-
-            let token_kind = match c {
-                '\'' => TokenKind::SingleQuoteStr,
-                '"' => TokenKind::DoubleQuoteStr,
-                _ => unreachable!(),
-            };
 
             let closing_char = c;
             let mut found = false;
             index += 1;
             while index < command_raw.len() {
-                let c = unsafe { command_raw.chars().nth(index).unwrap_unchecked() };
+                let c = get_char!(index);
 
                 if c == closing_char {
-                    let lexeme = &command_raw[token_start + 1..index];
                     tokens.push(Token::new(
-                        lexeme.to_owned(),
+                        lexeme.clone(),
                         token_start,
                         index,
-                        token_kind,
+                        TokenKind::StringLiteral,
                     ));
                     found = true;
                     token_start = index + 1;
+                    lexeme.clear();
                     break;
                 }
+                lexeme.push(c);
                 index += 1;
             }
             if !found {
                 eprintln!("Could not find closing `{closing_char}` character");
                 return Err(());
             }
+        } else {
+            lexeme.push(c);
         }
-
         index += 1;
     }
 
-    let lexeme = &command_raw[token_start..command_raw.len()];
     tokens.push(Token::new(
-        lexeme.to_owned(),
+        lexeme.clone(),
         token_start,
         command_raw.len() - 1,
-        TokenKind::Normal,
+        TokenKind::Identifier,
     ));
 
     Ok(tokens)
@@ -142,7 +146,7 @@ fn join_concatenated_strings(tokens: &mut Vec<Token>) {
                 new_lexeme,
                 prev_token.start,
                 token.end,
-                TokenKind::Joined,
+                TokenKind::StringLiteral,
             ));
         }
 
