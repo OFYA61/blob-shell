@@ -68,8 +68,10 @@ fn test_executable_in_quotes() {
     run_shell(
         r#"
         "echo" hello world
+        "echo" hello example
         "#,
     )
     .success()
-    .stdout(predicate::str::contains("hello world"));
+    .stdout(predicate::str::contains("hello world"))
+    .stdout(predicate::str::contains("hello example"));
 }
