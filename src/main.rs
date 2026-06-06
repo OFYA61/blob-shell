@@ -93,6 +93,26 @@ impl Env {
     }
 }
 
+macro_rules! expect_no_argument {
+    ($command:expr, $args:expr) => {
+        if !$args.is_empty() {
+            println!("{}: expects no argument", $command);
+            continue;
+        }
+    };
+}
+
+macro_rules! expect_single_argument {
+    ($command:expr, $args:expr) => {
+        if $args.len() != 1 {
+            println!("{}: expects exactly one argument", $command);
+            continue;
+        } else {
+            $args[0]
+        }
+    };
+}
+
 fn main() {
     let mut env = Env::init();
 
@@ -109,28 +129,45 @@ fn main() {
 
         let (command, args) = command.split_once(' ').unwrap_or((&command, ""));
 
+        let args = args
+            .split_whitespace()
+            .filter(|arg| !arg.is_empty())
+            .collect::<Vec<&str>>();
+
         if let Some(builtin) = Builtin::from_str(command) {
             match builtin {
-                Builtin::Echo => println!("{args}"),
-                Builtin::Exit => break,
+                Builtin::Echo => {
+                    println!("{}", args.join(" "));
+                }
+                Builtin::Exit => {
+                    expect_no_argument!("exit", args);
+                    break;
+                }
 
-                Builtin::Cd => match env.change_directory(args) {
-                    Err(err) => match err {
-                        ChangeDirError::DoesNotExist => {
-                            println!("cd: {args}: No such file or directory")
-                        }
-                    },
-                    _ => {}
-                },
-                Builtin::Pwd => println!("{}", env.get_current_directory()),
+                Builtin::Cd => {
+                    let new_dir = expect_single_argument!("cd", args);
+                    match env.change_directory(new_dir) {
+                        Err(err) => match err {
+                            ChangeDirError::DoesNotExist => {
+                                println!("cd: {new_dir}: No such file or directory")
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                Builtin::Pwd => {
+                    expect_no_argument!("pwd", args);
+                    println!("{}", env.get_current_directory());
+                }
 
                 Builtin::Type => {
-                    if Builtin::from_str(args).is_some() {
-                        println!("{} is a shell builtin", args);
-                    } else if let Some(command) = env.get_command(args) {
-                        println!("{} is {}", args, command.to_str().unwrap_or(""));
+                    let cmd = expect_single_argument!("type", args);
+                    if Builtin::from_str(cmd).is_some() {
+                        println!("{} is a shell builtin", cmd);
+                    } else if let Some(command) = env.get_command(cmd) {
+                        println!("{} is {}", cmd, command.to_str().unwrap_or(""));
                     } else {
-                        println!("{args}: not found");
+                        println!("{cmd}: not found");
                     }
                 }
             };
@@ -138,8 +175,6 @@ fn main() {
         }
 
         if let Some(_) = env.get_command(command) {
-            let args = args.trim().split_whitespace().collect::<Vec<&str>>();
-
             let mut child = std::process::Command::new(command);
             if args.len() > 0 {
                 child.args(args);
