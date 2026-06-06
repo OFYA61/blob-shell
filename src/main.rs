@@ -113,28 +113,88 @@ macro_rules! expect_single_argument {
     };
 }
 
+#[derive(Debug)]
+enum Token<'a> {
+    Identifier(&'a str),
+}
+
+impl<'a> Token<'a> {
+    fn lexeme(&self) -> &'a str {
+        match self {
+            Token::Identifier(identifier) => identifier,
+        }
+    }
+}
+
+fn parse_command<'a>(command_raw: &'a str) -> Result<Vec<Token<'a>>, ()> {
+    let mut parsed_command: Vec<Token> = Vec::new();
+
+    macro_rules! add_identifier {
+        ($start:expr, $end:expr) => {
+            let identifier = &command_raw[$start..$end];
+            if !identifier.is_empty() {
+                parsed_command.push(Token::Identifier(identifier));
+            }
+        };
+    }
+
+    let mut token_start: usize = 0;
+    let mut c_iter = command_raw.chars().enumerate();
+    while let Some((index, c)) = c_iter.next() {
+        if c.is_whitespace() {
+            add_identifier!(token_start, index);
+            token_start = index + 1;
+            continue;
+        }
+
+        if c == '\'' {
+            let mut found = false;
+            while let Some((index, c)) = c_iter.next() {
+                if c == '\'' {
+                    add_identifier!(token_start + 1, index);
+                    found = true;
+                    token_start = index + 1;
+                    break;
+                }
+            }
+            if !found {
+                eprintln!("Could not find closing \"'\" character");
+                return Err(());
+            }
+        }
+    }
+
+    add_identifier!(token_start, command_raw.len());
+
+    Ok(parsed_command)
+}
+
 fn main() {
     let mut env = Env::init();
 
     loop {
         print!("$ ");
-        std::io::stdout().flush().unwrap();
+        std::io::stdout().flush().expect("Failed to flush stdout");
 
-        let mut command = String::new();
+        let mut command_raw = String::new();
         std::io::stdin()
-            .read_line(&mut command)
-            .expect("Failed to read command");
+            .read_line(&mut command_raw)
+            .expect("Failed to read user input");
+        command_raw = command_raw.replace("''", "");
 
-        command = command.trim().to_string();
+        let parsed_command = parse_command(&command_raw);
+        if parsed_command.is_err() {
+            continue;
+        }
+        let parsed_command = parsed_command.unwrap();
+        if parsed_command.is_empty() {
+            continue;
+        }
+        let (command, args) = parsed_command.split_first().unwrap();
 
-        let (command, args) = command.split_once(' ').unwrap_or((&command, ""));
+        let args = args.iter().map(|arg| arg.lexeme()).collect::<Vec<&str>>();
 
-        let args = args
-            .split_whitespace()
-            .filter(|arg| !arg.is_empty())
-            .collect::<Vec<&str>>();
-
-        if let Some(builtin) = Builtin::from_str(command) {
+        if let Some(builtin) = Builtin::from_str(command.lexeme()) {
             match builtin {
                 Builtin::Echo => {
                     println!("{}", args.join(" "));
@@ -174,8 +234,8 @@ fn main() {
             continue;
         }
 
-        if let Some(_) = env.get_command(command) {
-            let mut child = std::process::Command::new(command);
+        if let Some(_) = env.get_command(command.lexeme()) {
+            let mut child = std::process::Command::new(command.lexeme());
             if args.len() > 0 {
                 child.args(args);
             }
@@ -188,6 +248,6 @@ fn main() {
             continue;
         }
 
-        println!("{}: command not found", command);
+        println!("{}: command not found", command.lexeme());
     }
 }
