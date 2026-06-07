@@ -51,7 +51,7 @@ fn main() {
                         continue;
                     }
 
-                    if let Some(exec) = env::get_command(&exec) {
+                    if let Some(_) = env::get_command(&exec) {
                         let should_pipe_stdout = !stdout_files.is_empty();
 
                         let mut child = std::process::Command::new(&exec);

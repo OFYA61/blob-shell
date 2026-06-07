@@ -53,21 +53,12 @@ macro_rules! expect_single_argument {
 /// If it is a bultin command returns `true`, even if wrong argument types get passed
 pub fn try_process(exec: &str, args: &Vec<&str>, stdout_files: &Vec<File>) -> bool {
     macro_rules! write_stdout {
-        ($buf:expr) => {
+        ($($arg:tt)*) => {
             if stdout_files.is_empty() {
-                println!($buf);
+                println!($($arg)*);
             } else {
                 stdout_files.iter().for_each(|mut file| {
-                    writeln!(&mut file, $buf).expect("Failed to write to file");
-                });
-            }
-        };
-        ($buf:expr, $($arg:tt)*) => {
-            if stdout_files.is_empty() {
-                println!($buf, $($arg)*);
-            } else {
-                stdout_files.iter().for_each(|mut file| {
-                    writeln!(&mut file, $buf, $($arg)*).expect("Failed to write to file");
+                    writeln!(&mut file, $($arg)*).expect("Failed to write to file");
                 });
             }
         };
