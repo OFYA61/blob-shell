@@ -1,0 +1,85 @@
+use std::cell::RefCell;
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
+
+#[derive(Debug)]
+pub enum ChangeDirError {
+    DoesNotExist,
+}
+
+#[derive(Debug)]
+struct Env {
+    home: String,
+    paths: Vec<PathBuf>,
+}
+
+impl Env {
+    fn init() -> Self {
+        let home = std::env::var("HOME").expect("Failed to get home environment variable");
+        let path_var = std::env::var("PATH");
+        if path_var.is_err() {
+            return Self {
+                home,
+                paths: vec![],
+            };
+        }
+        let path_var = unsafe { path_var.unwrap_unchecked() };
+
+        Self {
+            home,
+            paths: std::env::split_paths(&path_var)
+                .filter(|p| p.is_dir())
+                .collect(),
+        }
+    }
+
+    fn get_command(&self, command: &str) -> Option<PathBuf> {
+        for path in &self.paths {
+            let full_path = path.join(command);
+            if full_path.is_file() || full_path.is_symlink() {
+                if let Ok(metadata) = std::fs::metadata(&full_path) {
+                    // Check executable permissions
+                    if metadata.permissions().mode() & 0o111 != 0 {
+                        return Some(full_path);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn get_current_dir(&self) -> String {
+        std::env::current_dir()
+            .expect("Failed to get current directory")
+            .to_str()
+            .expect("Failed to parse to string")
+            .to_owned()
+    }
+
+    fn change_dir(&mut self, new_dir: &str) -> Result<(), ChangeDirError> {
+        let dir: String;
+        if new_dir.starts_with("~") {
+            dir = new_dir.replace("~", &self.home);
+        } else {
+            dir = new_dir.to_owned();
+        }
+
+        std::env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
+    }
+}
+
+thread_local! {
+    static ENV: RefCell<Env> = RefCell::new(Env::init());
+}
+
+pub fn get_command(command: &str) -> Option<PathBuf> {
+    ENV.with(|env| env.borrow().get_command(command))
+}
+
+pub fn get_current_dir() -> String {
+    ENV.with(|env| env.borrow().get_current_dir())
+}
+
+pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
+    ENV.with(|env| env.borrow_mut().change_dir(new_dir))
+}
