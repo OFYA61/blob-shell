@@ -1,10 +1,11 @@
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TokenKind {
     Word,
     /// Single quoted string
     LiteralString,
     /// Double quoted string
     FormatString,
+    EOF,
 }
 
 impl TokenKind {
@@ -20,13 +21,13 @@ impl TokenKind {
 #[derive(Debug)]
 pub struct Token {
     pub lexeme: String,
+    pub kind: TokenKind,
     start: usize,
     end: usize,
-    kind: TokenKind,
 }
 
 impl Token {
-    pub fn new(lexeme: String, start: usize, end: usize, kind: TokenKind) -> Self {
+    fn new(lexeme: String, start: usize, end: usize, kind: TokenKind) -> Self {
         Self {
             lexeme,
             start,
@@ -141,6 +142,13 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
     ));
 
     join_concatenated_strings(&mut tokens);
+
+    tokens.push(Token::new(
+        lexeme.clone(),
+        command_raw.len(),
+        command_raw.len(),
+        TokenKind::EOF,
+    ));
 
     Ok(tokens)
 }

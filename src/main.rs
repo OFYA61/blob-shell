@@ -134,75 +134,75 @@ fn main() {
             continue;
         }
 
-        let parsed_command = parser::parse(command_raw);
-        if parsed_command.is_err() {
+        let ast = parser::parse_to_ast(command_raw);
+        if ast.is_err() {
             continue;
         }
-        let parsed_command = parsed_command.unwrap();
-        if parsed_command.is_empty() {
-            continue;
-        }
-        let (command, args) = parsed_command.split_first().unwrap();
 
-        let args = args
-            .iter()
-            .map(|arg| arg.lexeme.as_str())
-            .collect::<Vec<&str>>();
+        // Interpret the AST
+        for expr in ast.unwrap() {
+            match expr {
+                parser::Expr::Command { exec, args } => {
+                    let exec = exec.process();
+                    let args = args.iter().map(|arg| arg.process()).collect::<Vec<&str>>();
 
-        if let Some(builtin) = Builtin::from_str(&command.lexeme) {
-            match builtin {
-                Builtin::Echo => {
-                    println!("{}", args.join(" "));
-                }
-                Builtin::Exit => {
-                    expect_no_argument!("exit", args);
-                    break;
-                }
-
-                Builtin::Cd => {
-                    let new_dir = expect_single_argument!("cd", args);
-                    match env.change_directory(new_dir) {
-                        Err(err) => match err {
-                            ChangeDirError::DoesNotExist => {
-                                println!("cd: {new_dir}: No such file or directory")
+                    if let Some(builtin) = Builtin::from_str(&exec) {
+                        match builtin {
+                            Builtin::Echo => {
+                                println!("{}", args.join(" "));
                             }
-                        },
-                        _ => {}
-                    }
-                }
-                Builtin::Pwd => {
-                    expect_no_argument!("pwd", args);
-                    println!("{}", env.get_current_directory());
-                }
+                            Builtin::Exit => {
+                                expect_no_argument!("exit", args);
+                                std::process::exit(0);
+                            }
 
-                Builtin::Type => {
-                    let cmd = expect_single_argument!("type", args);
-                    if Builtin::from_str(cmd).is_some() {
-                        println!("{} is a shell builtin", cmd);
-                    } else if let Some(command) = env.get_command(cmd) {
-                        println!("{} is {}", cmd, command.to_str().unwrap_or(""));
-                    } else {
-                        println!("{cmd}: not found");
-                    }
-                }
-            };
-            continue;
-        }
+                            Builtin::Cd => {
+                                let new_dir = expect_single_argument!("cd", args);
+                                match env.change_directory(new_dir) {
+                                    Err(err) => match err {
+                                        ChangeDirError::DoesNotExist => {
+                                            println!("cd: {new_dir}: No such file or directory")
+                                        }
+                                    },
+                                    _ => {}
+                                }
+                            }
+                            Builtin::Pwd => {
+                                expect_no_argument!("pwd", args);
+                                println!("{}", env.get_current_directory());
+                            }
 
-        if let Some(_) = env.get_command(&command.lexeme) {
-            let mut child = std::process::Command::new(&command.lexeme);
-            if args.len() > 0 {
-                child.args(args);
+                            Builtin::Type => {
+                                let cmd = expect_single_argument!("type", args);
+                                if Builtin::from_str(cmd).is_some() {
+                                    println!("{} is a shell builtin", cmd);
+                                } else if let Some(command) = env.get_command(cmd) {
+                                    println!("{} is {}", cmd, command.to_str().unwrap_or(""));
+                                } else {
+                                    println!("{cmd}: not found");
+                                }
+                            }
+                        };
+                        continue;
+                    }
+
+                    if let Some(_) = env.get_command(&exec) {
+                        let mut child = std::process::Command::new(&exec);
+                        if args.len() > 0 {
+                            child.args(args);
+                        }
+                        child
+                            .spawn()
+                            .expect("Failed to execute process")
+                            .wait()
+                            .expect("Failed to wait on command");
+
+                        continue;
+                    }
+
+                    println!("{}: command not found", exec);
+                }
             }
-            child
-                .spawn()
-                .expect("Failed to execute process")
-                .wait()
-                .expect("Failed to wait on command");
-
-            continue;
         }
-
-        println!("{}: command not found", command.lexeme);
     }
 }
