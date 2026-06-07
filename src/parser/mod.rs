@@ -1,6 +1,7 @@
 mod tokenizer;
 
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::path::Path;
 
 use self::tokenizer::Token;
@@ -41,7 +42,7 @@ impl ExprArg {
             TokenKind::Word => Self::Word(token.lexeme.clone()),
             TokenKind::LiteralString => Self::Literal(token.lexeme.clone()),
             TokenKind::FormatString => Self::Format(token.lexeme.clone()),
-            _ => unreachable!("Should never try and translate {:?} to ExprArg", token.kind),
+            _ => unreachable!("Should never translate {:?} to ExprArg", token.kind),
         }
     }
 }
@@ -49,16 +50,20 @@ impl ExprArg {
 #[derive(Debug, PartialEq, Eq)]
 enum ExprRedirectKind {
     Stdout,
+    StdoutAppend,
     Stderr,
+    StderrAppend,
 }
 
 impl ExprRedirectKind {
     fn from_token(token: &Token) -> Self {
         match token.kind {
             TokenKind::RedirectStdout => Self::Stdout,
+            TokenKind::RedirectStdoutAppend => Self::StdoutAppend,
             TokenKind::RedirectStderr => Self::Stderr,
+            TokenKind::RedirectStderrAppend => Self::StderrAppend,
             _ => unreachable!(
-                "Should never try and translate {:?} to ExprRedirectKind",
+                "Should never translate {:?} to ExprRedirectKind",
                 token.kind
             ),
         }
@@ -73,16 +78,36 @@ pub struct ExprRedirect {
 
 impl ExprRedirect {
     pub fn is_stdout(&self) -> bool {
-        self.kind == ExprRedirectKind::Stdout
+        match self.kind {
+            ExprRedirectKind::Stdout | ExprRedirectKind::StdoutAppend => true,
+            _ => false,
+        }
     }
 
     pub fn is_stderr(&self) -> bool {
-        self.kind == ExprRedirectKind::Stderr
+        match self.kind {
+            ExprRedirectKind::Stderr | ExprRedirectKind::StderrAppend => true,
+            _ => false,
+        }
+    }
+
+    fn is_append(&self) -> bool {
+        match self.kind {
+            ExprRedirectKind::StdoutAppend | ExprRedirectKind::StderrAppend => true,
+            _ => false,
+        }
     }
 
     pub fn open_file(&self) -> File {
         let path = Path::new(self.arg.process());
-        File::create(path).expect("Failed to open file")
+        if self.is_append() {
+            OpenOptions::new()
+                .append(true)
+                .open(path)
+                .expect("Failed to open file in append mode")
+        } else {
+            File::create(path).expect("Failed to open file")
+        }
     }
 }
 
@@ -131,7 +156,12 @@ impl Parser {
         }
 
         let mut redirects: Vec<ExprRedirect> = vec![];
-        while self.match_any(vec![TokenKind::RedirectStdout, TokenKind::RedirectStderr])? {
+        while self.match_any(vec![
+            TokenKind::RedirectStdout,
+            TokenKind::RedirectStdoutAppend,
+            TokenKind::RedirectStderr,
+            TokenKind::RedirectStderrAppend,
+        ])? {
             redirects.push(self.expr_redirect()?);
         }
 
@@ -152,9 +182,12 @@ impl Parser {
     }
 
     fn expr_redirect(&mut self) -> Result<ExprRedirect, ParserError> {
-        let kind = ExprRedirectKind::from_token(
-            self.consume_any(vec![TokenKind::RedirectStdout, TokenKind::RedirectStderr])?,
-        );
+        let kind = ExprRedirectKind::from_token(self.consume_any(vec![
+            TokenKind::RedirectStdout,
+            TokenKind::RedirectStdoutAppend,
+            TokenKind::RedirectStderr,
+            TokenKind::RedirectStderrAppend,
+        ])?);
         let arg = self.expr_arg()?;
         Ok(ExprRedirect { kind, arg })
     }
