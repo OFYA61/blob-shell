@@ -99,6 +99,7 @@ impl ExprRedirect {
     }
 
     pub fn open_file(&self) -> File {
+        // TODO: print out error message instead of panicing when file cannot be opened
         let path = Path::new(self.arg.process());
         if self.is_append() {
             OpenOptions::new()
