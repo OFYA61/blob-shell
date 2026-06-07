@@ -1,5 +1,6 @@
 mod tokenizer;
 
+use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::path::Path;
@@ -103,6 +104,7 @@ impl ExprRedirect {
         let path = Path::new(self.arg.process());
         if self.is_append() {
             OpenOptions::new()
+                .create(true)
                 .append(true)
                 .open(path)
                 .expect("Failed to open file in append mode")
