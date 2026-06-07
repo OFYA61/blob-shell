@@ -63,20 +63,20 @@ pub fn try_process(
     }
 
     macro_rules! expect_no_argument {
-        ($args:expr) => {
-            if !$args.is_empty() {
+        () => {
+            if !args.is_empty() {
                 write_stderr!("{}: expects no argument", exec);
             }
         };
     }
 
     macro_rules! expect_single_argument {
-        ($args:expr) => {
-            if $args.len() != 1 {
+        () => {
+            if args.len() != 1 {
                 write_stderr!("{}: expects exactly one argument", exec);
                 return true;
             } else {
-                $args[0]
+                args[0]
             }
         };
     }
@@ -91,12 +91,12 @@ pub fn try_process(
             write_stdout!("{}", args.join(" "));
         }
         Builtin::Exit => {
-            expect_no_argument!(args);
+            expect_no_argument!();
             std::process::exit(0);
         }
 
         Builtin::Cd => {
-            let new_dir = expect_single_argument!(args);
+            let new_dir = expect_single_argument!();
             match env::change_dir(new_dir) {
                 Err(err) => match err {
                     ChangeDirError::DoesNotExist => {
@@ -107,12 +107,12 @@ pub fn try_process(
             }
         }
         Builtin::Pwd => {
-            expect_no_argument!(args);
+            expect_no_argument!();
             write_stdout!("{}", env::get_current_dir());
         }
 
         Builtin::Type => {
-            let cmd = expect_single_argument!(args);
+            let cmd = expect_single_argument!();
             if Builtin::from_str(cmd).is_some() {
                 write_stdout!("{} is a shell builtin", cmd);
             } else if let Some(command) = env::get_command(cmd) {
