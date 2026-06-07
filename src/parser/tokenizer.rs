@@ -8,6 +8,7 @@ pub enum TokenKind {
     FormatString,
 
     RedirectStdout,
+    RedirectStderr,
 
     EOF,
 }
@@ -60,6 +61,7 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
             if !lexeme.is_empty() {
                 let token_kind = match lexeme.as_str() {
                     ">" | "1>" => TokenKind::RedirectStdout,
+                    "2>" => TokenKind::RedirectStderr,
                     _ => TokenKind::Word,
                 };
                 tokens.push(Token::new(

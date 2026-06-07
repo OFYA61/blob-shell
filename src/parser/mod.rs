@@ -47,14 +47,16 @@ impl ExprArg {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum ExprRedirectKind {
+enum ExprRedirectKind {
     Stdout,
+    Stderr,
 }
 
 impl ExprRedirectKind {
     fn from_token(token: &Token) -> Self {
         match token.kind {
             TokenKind::RedirectStdout => Self::Stdout,
+            TokenKind::RedirectStderr => Self::Stderr,
             _ => unreachable!(
                 "Should never try and translate {:?} to ExprRedirectKind",
                 token.kind
@@ -74,6 +76,10 @@ impl ExprRedirect {
         self.kind == ExprRedirectKind::Stdout
     }
 
+    pub fn is_stderr(&self) -> bool {
+        self.kind == ExprRedirectKind::Stderr
+    }
+
     pub fn open_file(&self) -> File {
         let path = Path::new(self.arg.process());
         File::create(path).expect("Failed to open file")
@@ -86,7 +92,7 @@ impl ExprRedirect {
 /// ```ignore
 /// command  -> expr_arg+ redirect* EOF
 /// expr_arg -> WORD | LITERAL_STRING | FORMAT_STRING
-/// expr_redirect -> REDIRECT_STDOUT expr_arg
+/// expr_redirect -> (REDIRECT_STDOUT | REDIRECT_STDERR) expr_arg
 /// ```
 struct Parser {
     tokens: Vec<Token>,
@@ -125,7 +131,7 @@ impl Parser {
         }
 
         let mut redirects: Vec<ExprRedirect> = vec![];
-        while self.match_any(vec![TokenKind::RedirectStdout])? {
+        while self.match_any(vec![TokenKind::RedirectStdout, TokenKind::RedirectStderr])? {
             redirects.push(self.expr_redirect()?);
         }
 
@@ -146,7 +152,9 @@ impl Parser {
     }
 
     fn expr_redirect(&mut self) -> Result<ExprRedirect, ParserError> {
-        let kind = ExprRedirectKind::from_token(self.consume_any(vec![TokenKind::RedirectStdout])?);
+        let kind = ExprRedirectKind::from_token(
+            self.consume_any(vec![TokenKind::RedirectStdout, TokenKind::RedirectStderr])?,
+        );
         let arg = self.expr_arg()?;
         Ok(ExprRedirect { kind, arg })
     }
