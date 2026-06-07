@@ -52,7 +52,7 @@ fn main() {
                         .map(|r| r.open_file())
                         .collect::<Vec<File>>();
 
-                    if builtin::try_process(exec, &args, &mut stdout_files) {
+                    if builtin::try_process(exec, &args, &mut stdout_files, &mut stderr_files) {
                         continue;
                     }
 
