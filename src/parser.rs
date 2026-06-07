@@ -1,14 +1,17 @@
 #[derive(Debug, Eq, PartialEq)]
 pub enum TokenKind {
-    Identifier,
-    StringLiteral,
+    Word,
+    /// Single quoted string
+    LiteralString,
+    /// Double quoted string
+    FormatString,
 }
 
 impl TokenKind {
     #[inline]
     fn can_concat(&self) -> bool {
         match self {
-            TokenKind::StringLiteral => true,
+            TokenKind::LiteralString | TokenKind::FormatString => true,
             _ => false,
         }
     }
@@ -36,7 +39,6 @@ impl Token {
 pub fn parse(command_raw: &str) -> Result<Vec<Token>, ()> {
     let mut tokens = tokenize(command_raw)?;
     join_concatenated_strings(&mut tokens);
-    // TODO: parse and return a Vec of expressions to parse and execute instead of tokens
     Ok(tokens)
 }
 
@@ -61,7 +63,7 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
                     lexeme.clone(),
                     token_start,
                     index - 1,
-                    TokenKind::Identifier,
+                    TokenKind::Word,
                 ));
             }
             token_start = index + 1;
@@ -81,7 +83,7 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
                         lexeme.clone(),
                         token_start,
                         index - 1,
-                        TokenKind::Identifier,
+                        TokenKind::Word,
                     ));
                 }
                 token_start = index;
@@ -91,6 +93,11 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
 
             let closing_char = c;
             let enable_escape_chars = if c == '"' { true } else { false };
+            let kind = if c == '"' {
+                TokenKind::FormatString
+            } else {
+                TokenKind::LiteralString
+            };
             let mut found = false;
             index += 1;
             while index < command_raw.len() {
@@ -113,12 +120,7 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
                 }
 
                 if c == closing_char {
-                    tokens.push(Token::new(
-                        lexeme.clone(),
-                        token_start,
-                        index,
-                        TokenKind::StringLiteral,
-                    ));
+                    tokens.push(Token::new(lexeme.clone(), token_start, index, kind));
                     found = true;
                     token_start = index + 1;
                     lexeme.clear();
@@ -141,7 +143,7 @@ fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
         lexeme.clone(),
         token_start,
         command_raw.len() - 1,
-        TokenKind::Identifier,
+        TokenKind::Word,
     ));
 
     Ok(tokens)
@@ -157,14 +159,16 @@ fn join_concatenated_strings(tokens: &mut Vec<Token>) {
             && (prev_token.kind.can_concat() || token.kind.can_concat())
             && prev_token.end + 1 == token.start
         {
+            let kind = if prev_token.kind == TokenKind::FormatString
+                || token.kind == TokenKind::FormatString
+            {
+                TokenKind::FormatString
+            } else {
+                TokenKind::LiteralString
+            };
             let mut new_lexeme = prev_token.lexeme.clone();
             new_lexeme.push_str(token.lexeme.as_str());
-            new_token = Some(Token::new(
-                new_lexeme,
-                prev_token.start,
-                token.end,
-                TokenKind::StringLiteral,
-            ));
+            new_token = Some(Token::new(new_lexeme, prev_token.start, token.end, kind));
         }
 
         if let Some(new_token) = new_token {
