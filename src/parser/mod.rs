@@ -1,5 +1,8 @@
 mod tokenizer;
 
+use std::fs::File;
+use std::path::Path;
+
 use self::tokenizer::Token;
 use self::tokenizer::TokenKind;
 
@@ -10,7 +13,11 @@ pub fn parse_to_ast(command_raw: &str) -> Result<Vec<Expr>, ()> {
 
 #[derive(Debug)]
 pub enum Expr {
-    Command { exec: ExprArg, args: Vec<ExprArg> },
+    Command {
+        exec: ExprArg,
+        args: Vec<ExprArg>,
+        redirects: Vec<ExprRedirect>,
+    },
 }
 
 #[derive(Debug)]
@@ -34,8 +41,42 @@ impl ExprArg {
             TokenKind::Word => Self::Word(token.lexeme.clone()),
             TokenKind::LiteralString => Self::Literal(token.lexeme.clone()),
             TokenKind::FormatString => Self::Format(token.lexeme.clone()),
-            TokenKind::EOF => unreachable!("Should never try and translate EOF to ExprArg"),
+            _ => unreachable!("Should never try and translate {:?} to ExprArg", token.kind),
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExprRedirectKind {
+    Stdout,
+}
+
+impl ExprRedirectKind {
+    fn from_token(token: &Token) -> Self {
+        match token.kind {
+            TokenKind::RedirectStdout => Self::Stdout,
+            _ => unreachable!(
+                "Should never try and translate {:?} to ExprRedirectKind",
+                token.kind
+            ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExprRedirect {
+    kind: ExprRedirectKind,
+    arg: ExprArg,
+}
+
+impl ExprRedirect {
+    pub fn is_stdout(&self) -> bool {
+        self.kind == ExprRedirectKind::Stdout
+    }
+
+    pub fn open_file(&self) -> File {
+        let path = Path::new(self.arg.process());
+        File::create(path).expect("Failed to open file")
     }
 }
 
@@ -43,8 +84,9 @@ impl ExprArg {
 ///
 /// Parsing rules
 /// ```ignore
-/// command -> expr_arg+ EOF
+/// command  -> expr_arg+ redirect* EOF
 /// expr_arg -> WORD | LITERAL_STRING | FORMAT_STRING
+/// expr_redirect -> REDIRECT_STDOUT expr_arg
 /// ```
 struct Parser {
     tokens: Vec<Token>,
@@ -74,12 +116,25 @@ impl Parser {
         ])?);
 
         let mut args: Vec<ExprArg> = vec![];
-        while self.peek_token()?.kind != TokenKind::EOF {
+        while self.match_any(vec![
+            TokenKind::Word,
+            TokenKind::LiteralString,
+            TokenKind::FormatString,
+        ])? {
             args.push(self.expr_arg()?);
         }
 
+        let mut redirects: Vec<ExprRedirect> = vec![];
+        while self.match_any(vec![TokenKind::RedirectStdout])? {
+            redirects.push(self.expr_redirect()?);
+        }
+
         self.consume(TokenKind::EOF)?;
-        Ok(Expr::Command { exec, args })
+        Ok(Expr::Command {
+            exec,
+            args,
+            redirects,
+        })
     }
 
     fn expr_arg(&mut self) -> Result<ExprArg, ParserError> {
@@ -88,6 +143,12 @@ impl Parser {
             TokenKind::LiteralString,
             TokenKind::FormatString,
         ])?))
+    }
+
+    fn expr_redirect(&mut self) -> Result<ExprRedirect, ParserError> {
+        let kind = ExprRedirectKind::from_token(self.consume_any(vec![TokenKind::RedirectStdout])?);
+        let arg = self.expr_arg()?;
+        Ok(ExprRedirect { kind, arg })
     }
 
     fn next_token(&mut self) -> Result<&Token, ParserError> {
@@ -103,6 +164,14 @@ impl Parser {
             return Ok(token);
         }
         Err(ParserError::EOF)
+    }
+
+    fn match_any(&mut self, token_kinds: Vec<TokenKind>) -> Result<bool, ParserError> {
+        let token = self.peek_token()?;
+        if !token_kinds.contains(&token.kind) {
+            return Ok(false);
+        }
+        Ok(true)
     }
 
     fn consume(&mut self, token_kind: TokenKind) -> Result<&Token, ParserError> {

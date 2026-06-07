@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::Write;
+
 use crate::env;
 use crate::env::ChangeDirError;
 
@@ -48,7 +51,28 @@ macro_rules! expect_single_argument {
 
 /// Try proecssing a bultin command. If none are found, returns `false`.
 /// If it is a bultin command returns `true`, even if wrong argument types get passed
-pub fn try_process(exec: &str, args: &Vec<&str>) -> bool {
+pub fn try_process(exec: &str, args: &Vec<&str>, stdout_files: &Vec<File>) -> bool {
+    macro_rules! write_stdout {
+        ($buf:expr) => {
+            if stdout_files.is_empty() {
+                println!($buf);
+            } else {
+                stdout_files.iter().for_each(|mut file| {
+                    writeln!(&mut file, $buf).expect("Failed to write to file");
+                });
+            }
+        };
+        ($buf:expr, $($arg:tt)*) => {
+            if stdout_files.is_empty() {
+                println!($buf, $($arg)*);
+            } else {
+                stdout_files.iter().for_each(|mut file| {
+                    writeln!(&mut file, $buf, $($arg)*).expect("Failed to write to file");
+                });
+            }
+        };
+    }
+
     let builtin = Builtin::from_str(&exec);
     if builtin.is_none() {
         return false;
@@ -56,7 +80,7 @@ pub fn try_process(exec: &str, args: &Vec<&str>) -> bool {
     let builtin = builtin.unwrap();
     match builtin {
         Builtin::Echo => {
-            println!("{}", args.join(" "));
+            write_stdout!("{}", args.join(" "));
         }
         Builtin::Exit => {
             expect_no_argument!("exit", args);
@@ -68,7 +92,7 @@ pub fn try_process(exec: &str, args: &Vec<&str>) -> bool {
             match env::change_dir(new_dir) {
                 Err(err) => match err {
                     ChangeDirError::DoesNotExist => {
-                        println!("cd: {new_dir}: No such file or directory")
+                        write_stdout!("cd: {new_dir}: No such file or directory");
                     }
                 },
                 _ => {}
@@ -76,17 +100,17 @@ pub fn try_process(exec: &str, args: &Vec<&str>) -> bool {
         }
         Builtin::Pwd => {
             expect_no_argument!("pwd", args);
-            println!("{}", env::get_current_dir());
+            write_stdout!("{}", env::get_current_dir());
         }
 
         Builtin::Type => {
             let cmd = expect_single_argument!("type", args);
             if Builtin::from_str(cmd).is_some() {
-                println!("{} is a shell builtin", cmd);
+                write_stdout!("{} is a shell builtin", cmd);
             } else if let Some(command) = env::get_command(cmd) {
-                println!("{} is {}", cmd, command.to_str().unwrap_or(""));
+                write_stdout!("{} is {}", cmd, command.to_str().unwrap_or(""));
             } else {
-                println!("{cmd}: not found");
+                write_stdout!("{cmd}: not found");
             }
         }
     };

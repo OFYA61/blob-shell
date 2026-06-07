@@ -1,10 +1,14 @@
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TokenKind {
     Word,
+
     /// Single quoted string
     LiteralString,
     /// Double quoted string
     FormatString,
+
+    RedirectStdout,
+
     EOF,
 }
 
@@ -54,11 +58,15 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
 
         if c.is_whitespace() {
             if !lexeme.is_empty() {
+                let token_kind = match lexeme.as_str() {
+                    ">" | "1>" => TokenKind::RedirectStdout,
+                    _ => TokenKind::Word,
+                };
                 tokens.push(Token::new(
                     lexeme.clone(),
                     token_start,
                     index - 1,
-                    TokenKind::Word,
+                    token_kind,
                 ));
             }
             token_start = index + 1;
