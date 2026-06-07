@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::env;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
@@ -15,8 +16,8 @@ struct Env {
 
 impl Env {
     fn init() -> Self {
-        let home = std::env::var("HOME").expect("Failed to get home environment variable");
-        let path_var = std::env::var("PATH");
+        let home = env::var("HOME").expect("Failed to get home environment variable");
+        let path_var = env::var("PATH");
         if path_var.is_err() {
             return Self {
                 home,
@@ -27,9 +28,7 @@ impl Env {
 
         Self {
             home,
-            paths: std::env::split_paths(&path_var)
-                .filter(|p| p.is_dir())
-                .collect(),
+            paths: env::split_paths(&path_var).filter(|p| p.is_dir()).collect(),
         }
     }
 
@@ -49,7 +48,7 @@ impl Env {
     }
 
     fn get_current_dir(&self) -> String {
-        std::env::current_dir()
+        env::current_dir()
             .expect("Failed to get current directory")
             .to_str()
             .expect("Failed to parse to string")
@@ -64,7 +63,7 @@ impl Env {
             dir = new_dir.to_owned();
         }
 
-        std::env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
+        env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
     }
 }
 
