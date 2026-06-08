@@ -13,7 +13,6 @@ fn test_invalid_commands() {
     run_shell(
         r#"
         invalid_command
-        exit
         "#,
     )
     .success()
@@ -27,7 +26,6 @@ fn test_echo_builtin() {
     run_shell(
         r#"
         echo apple banana
-        exit
         "#,
     )
     .success()
@@ -42,7 +40,6 @@ fn test_type_builtin_basics() {
         type exit
         type type
         type invalid_command
-        exit
         "#,
     )
     .success()

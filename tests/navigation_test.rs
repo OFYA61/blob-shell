@@ -14,7 +14,6 @@ fn test_pwd_and_type_pwd() {
         r#"
         type pwd
         pwd
-        exit
         "#,
     )
     .success()
@@ -29,7 +28,6 @@ fn test_cd_absolute_and_errors() {
         cd /tmp
         pwd
         cd /non-existing-directory
-        exit
         "#,
     )
     .success()
@@ -52,7 +50,6 @@ fn test_cd_relative_paths() {
         pwd
         cd {}
         pwd
-        exit
         "#,
         dir_path, folder
     ))
@@ -73,7 +70,6 @@ fn test_cd_home_directory() {
         cd /
         cd ~
         pwd
-        exit
         "#,
     )
     .success()

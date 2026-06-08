@@ -9,7 +9,6 @@ fn test_backslash_outside_quotes() {
         r#"
         echo hello\ \ \ \ \ \ example
         echo test\nscript
-        exit
         "#,
     )
     .success()
@@ -23,7 +22,6 @@ fn test_double_quotes() {
         r#"
         echo "script example"
         echo "example  shell"  "hello""script"
-        exit
         "#,
     )
     .success()
@@ -36,7 +34,6 @@ fn test_double_quotes_concatenation_on_left() {
     run_shell(
         r#"
         echo "hello"world
-        exit
         "#,
     )
     .success()
@@ -48,7 +45,6 @@ fn test_double_quotes_concatenation_on_right() {
     run_shell(
         r#"
         echo hello"world"
-        exit
         "#,
     )
     .success()
@@ -60,7 +56,6 @@ fn test_double_quotes_concatenation_on_left_and_right() {
     run_shell(
         r#"
         echo "hello""world"
-        exit
         "#,
     )
     .success()
@@ -72,7 +67,6 @@ fn test_double_quotes_concatenation_on_center() {
     run_shell(
         r#"
         echo hello"world"hello
-        exit
         "#,
     )
     .success()
@@ -85,7 +79,6 @@ fn test_backslash_inside_double_quotes() {
         r#"
         echo "just'one'\\n'backslash"
         echo "inside\"literal_quote."outside\"
-        exit
         "#,
     )
     .success()
@@ -99,7 +92,6 @@ fn test_single_quotes() {
         r#"
         echo 'hello example'
         echo 'world     test' 'shell''hello' example''script
-        exit
         "#,
     )
     .success()
@@ -114,7 +106,6 @@ fn test_single_quotes_concatenation_on_left() {
     run_shell(
         r#"
         echo 'hello'world
-        exit
         "#,
     )
     .success()
@@ -126,7 +117,6 @@ fn test_single_quotes_concatenation_on_right() {
     run_shell(
         r#"
         echo hello'world'
-        exit
         "#,
     )
     .success()
@@ -138,7 +128,6 @@ fn test_single_quotes_concatenation_on_left_and_right() {
     run_shell(
         r#"
         echo 'hello''world'
-        exit
         "#,
     )
     .success()
@@ -150,7 +139,6 @@ fn test_single_quotes_concatenation_on_center() {
     run_shell(
         r#"
         echo hello'world'hello
-        exit
         "#,
     )
     .success()
@@ -162,7 +150,6 @@ fn test_backslash_inside_single_quotes() {
     run_shell(
         r#"
         echo 'multiple\\slashes'
-        exit
         "#,
     )
     .success()
@@ -175,7 +162,6 @@ fn test_executable_in_quotes() {
         r#"
         "echo" hello world
         'echo' hello example
-        exit
         "#,
     )
     .success()
