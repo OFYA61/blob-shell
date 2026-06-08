@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
