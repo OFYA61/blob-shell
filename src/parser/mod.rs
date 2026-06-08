@@ -117,7 +117,7 @@ impl ExprRedirect {
 ///
 /// Parsing rules
 /// ```ignore
-/// command  -> expr_arg+ redirect* EOF
+/// command  -> expr_arg+ expr_redirect* EOF
 /// expr_arg -> WORD | LITERAL_STRING | FORMAT_STRING
 /// expr_redirect -> (REDIRECT_STDOUT | REDIRECT_STDERR) expr_arg
 /// ```
