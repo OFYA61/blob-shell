@@ -69,9 +69,8 @@ impl Env {
     }
 }
 
-static ENV: LazyLock<Mutex<Env>> = LazyLock::new(|| Mutex::new(Env::init()));
-
 fn env() -> MutexGuard<'static, Env> {
+    static ENV: LazyLock<Mutex<Env>> = LazyLock::new(|| Mutex::new(Env::init()));
     ENV.lock().unwrap()
 }
 
