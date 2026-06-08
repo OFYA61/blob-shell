@@ -1,50 +1,33 @@
 mod common;
 
-use self::common::run_shell;
-use predicates::prelude::*;
+use self::common::TestShell;
 
 #[test]
 fn test_exit_builtin() {
-    run_shell(r#"exit"#).success();
+    let mut shell = TestShell::new();
+    shell.exit();
 }
 
 #[test]
 fn test_invalid_commands() {
-    run_shell(
-        r#"
-        invalid_command
-        "#,
-    )
-    .success()
-    .stdout(predicate::str::contains(
-        r#"invalid_command: command not found"#,
-    ));
+    let mut shell = TestShell::new();
+    shell.test_command("invalid_command", "invalid_command: command not found");
+    shell.exit();
 }
 
 #[test]
 fn test_echo_builtin() {
-    run_shell(
-        r#"
-        echo apple banana
-        "#,
-    )
-    .success()
-    .stdout(predicate::str::contains(r#"apple banana"#));
+    let mut shell = TestShell::new();
+    shell.test_command("echo apple banana", "apple banana");
+    shell.exit();
 }
 
 #[test]
 fn test_type_builtin_basics() {
-    run_shell(
-        r#"
-        type echo
-        type exit
-        type type
-        type invalid_command
-        "#,
-    )
-    .success()
-    .stdout(predicate::str::contains(r#"echo is a shell builtin"#))
-    .stdout(predicate::str::contains(r#"exit is a shell builtin"#))
-    .stdout(predicate::str::contains(r#"type is a shell builtin"#))
-    .stdout(predicate::str::contains(r#"invalid_command: not found"#));
+    let mut shell = TestShell::new();
+    shell.test_command("type echo", "echo is a shell builtin");
+    shell.test_command("type exit", "exit is a shell builtin");
+    shell.test_command("type type", "type is a shell builtin");
+    shell.test_command("type invalid_command", "invalid_command: not found");
+    shell.exit();
 }

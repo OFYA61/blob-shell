@@ -6,6 +6,6 @@ edition = "2024"
 rust-version = "1.95"
 
 [dependencies]
-assert_cmd = "2.2.2"
-predicates = "3.1.4"
+crossterm = "0.29.0"
+rexpect = "0.7.1"
 tempfile = "3.27.0"

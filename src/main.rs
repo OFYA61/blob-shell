@@ -1,5 +1,6 @@
 mod builtin;
 mod env;
+mod input;
 mod parser;
 
 use std::fs::File;
@@ -11,13 +12,7 @@ use std::thread;
 
 fn main() {
     loop {
-        print!("$ ");
-        std::io::stdout().flush().expect("Failed to flush stdout");
-
-        let mut command_raw = String::new();
-        std::io::stdin()
-            .read_line(&mut command_raw)
-            .expect("Failed to read user input");
+        let command_raw = input::get_input();
 
         let command_raw = command_raw.trim();
         if command_raw.is_empty() {

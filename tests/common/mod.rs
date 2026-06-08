@@ -1,30 +1,78 @@
 #![allow(dead_code)]
+
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::path::Path;
 use std::path::PathBuf;
 
-use assert_cmd::Command;
+use rexpect;
+use rexpect::session::PtySession;
 use tempfile;
 
-pub fn run_shell(input: &str) -> assert_cmd::assert::Assert {
-    let mut input = input.to_owned();
-    input.push_str("\nexit");
-    Command::cargo_bin("blob-shell")
-        .expect("Failed to startup blob-shell")
-        .write_stdin(input)
-        .assert()
+#[cfg(debug_assertions)]
+const TARGET_SUBDIR: &str = "debug";
+#[cfg(not(debug_assertions))]
+const TARGET_SUBDIR: &str = "release";
+
+pub struct TestShell {
+    pty_session: PtySession,
 }
 
-pub fn run_shell_with_path(input: &str, dir: &Path) -> assert_cmd::assert::Assert {
-    let mut input = input.to_owned();
-    input.push_str("\nexit");
-    Command::cargo_bin("blob-shell")
-        .expect("Failed to startup blob-shell")
-        .current_dir(dir)
-        .write_stdin(input)
-        .assert()
+impl TestShell {
+    pub fn new() -> Self {
+        let bin_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join(TARGET_SUBDIR)
+            .join("blob-shell");
+        println!("BINARY {:?}", bin_path);
+        let mut pty_session = rexpect::spawn(
+            bin_path.to_str().expect("Failed to get executable path"),
+            Some(2000),
+        )
+        .expect("Failed to spawn shell");
+
+        pty_session
+            .exp_string("$ ")
+            .expect("Failed to get initial '$ '");
+
+        Self { pty_session }
+    }
+
+    pub fn new_with_cd(cd_dir: &str) -> Self {
+        let mut shell = Self::new();
+        shell.test_command(&format!("cd {}", cd_dir), "");
+
+        shell
+    }
+
+    pub fn test_command(&mut self, command: &str, expected_output: &str) {
+        self.pty_session
+            .send(command)
+            .expect("Failed to send command");
+        self.pty_session.flush().expect("Failed to flush");
+        self.pty_session
+            .exp_string(command)
+            .expect("Failed to check read command string");
+
+        self.pty_session.send("\r").expect("Failed to send enter");
+        self.pty_session.flush().expect("Failed to flush");
+
+        if !expected_output.is_empty() {
+            self.pty_session
+                .exp_string(expected_output)
+                .expect("Failed to get expected output");
+        }
+
+        self.pty_session
+            .exp_string("$ ")
+            .expect("Failed to get next '$ ' prompt");
+    }
+
+    pub fn exit(&mut self) {
+        self.pty_session
+            .send_line("exit")
+            .expect("Failed to send exit command");
+    }
 }
 
 pub fn create_dir() -> tempfile::TempDir {
