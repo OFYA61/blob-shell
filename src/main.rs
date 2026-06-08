@@ -15,11 +15,9 @@ fn main() {
         std::io::stdout().flush().expect("Failed to flush stdout");
 
         let mut command_raw = String::new();
-        match std::io::stdin().read_line(&mut command_raw) {
-            Ok(0) => break,
-            Ok(_) => {}
-            Err(_) => panic!("Failed to read user intpu"),
-        };
+        std::io::stdin()
+            .read_line(&mut command_raw)
+            .expect("Failed to read user input");
 
         let command_raw = command_raw.trim();
         if command_raw.is_empty() {

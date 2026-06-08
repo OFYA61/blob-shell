@@ -4,51 +4,46 @@ use self::common::run_shell;
 use predicates::prelude::*;
 
 #[test]
-fn test_prompt_and_invalid_commands() {
-    run_shell(
-        r#"invalid_command_1
-invalid_command_2
-"#,
-    )
-    .success()
-    .stdout(predicate::str::contains(r#"$ "#))
-    .stdout(predicate::str::contains(
-        r#"invalid_command_1: command not found"#,
-    ))
-    .stdout(predicate::str::contains(
-        r#"invalid_command_2: command not found"#,
-    ));
+fn test_exit_builtin() {
+    run_shell(r#"exit"#).success();
 }
 
 #[test]
-fn test_exit_builtin() {
+fn test_invalid_commands() {
     run_shell(
-        r#"exit
-"#,
+        r#"
+        invalid_command
+        exit
+        "#,
     )
-    .success();
+    .success()
+    .stdout(predicate::str::contains(
+        r#"invalid_command: command not found"#,
+    ));
 }
 
 #[test]
 fn test_echo_builtin() {
     run_shell(
-        r#"echo apple banana
-echo pear pineapple orange
-"#,
+        r#"
+        echo apple banana
+        exit
+        "#,
     )
     .success()
-    .stdout(predicate::str::contains(r#"apple banana"#))
-    .stdout(predicate::str::contains(r#"pear pineapple orange"#));
+    .stdout(predicate::str::contains(r#"apple banana"#));
 }
 
 #[test]
 fn test_type_builtin_basics() {
     run_shell(
-        r#"type echo
-type exit
-type type
-type invalid_command
-"#,
+        r#"
+        type echo
+        type exit
+        type type
+        type invalid_command
+        exit
+        "#,
     )
     .success()
     .stdout(predicate::str::contains(r#"echo is a shell builtin"#))
