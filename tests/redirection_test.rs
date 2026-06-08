@@ -69,6 +69,35 @@ fn test_stdout_redirection_append_new_file() {
 }
 
 #[test]
+fn test_stdout_redirection_append_existing_file() {
+    let dir = common::create_dir();
+
+    let file1_path = dir.path().join("output.txt");
+    let file2_path = dir.path().join("output2.txt");
+    common::create_file(
+        &dir,
+        TestFile::new(file1_path.clone(), "some random content"),
+    );
+    common::create_file(
+        &dir,
+        TestFile::new(file2_path.clone(), "some random content 2"),
+    );
+
+    run_shell_with_path(
+        r#"
+        echo hello >> output.txt
+        echo hello world 1>> output2.txt
+        exit
+        "#,
+        dir.path(),
+    )
+    .success();
+
+    common::assert_file_contents(file1_path, "some random contenthello\n");
+    common::assert_file_contents(file2_path, "some random content 2hello world\n");
+}
+
+#[test]
 fn test_stderr_redirection_new_file() {
     let dir = common::create_dir();
 
@@ -125,5 +154,30 @@ fn test_stderr_redirection_append_new_file() {
     common::assert_file_contents(
         dir.path().join("output.txt"),
         "cat: nonexistent: No such file or directory\n",
+    );
+}
+
+#[test]
+fn test_stderr_redirection_append_existing_file() {
+    let dir = common::create_dir();
+
+    let file_path = dir.path().join("output.txt");
+    common::create_file(
+        &dir,
+        TestFile::new(file_path.clone(), "some random content"),
+    );
+
+    run_shell_with_path(
+        r#"
+        cat nonexistent 2>> output.txt
+        exit
+        "#,
+        dir.path(),
+    )
+    .success();
+
+    common::assert_file_contents(
+        file_path,
+        "some random contentcat: nonexistent: No such file or directory\n",
     );
 }
