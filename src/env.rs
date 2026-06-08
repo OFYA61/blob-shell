@@ -1,7 +1,9 @@
-use std::cell::RefCell;
 use std::env;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::sync::LazyLock;
+use std::sync::Mutex;
+use std::sync::MutexGuard;
 
 #[derive(Debug)]
 pub enum ChangeDirError {
@@ -67,18 +69,20 @@ impl Env {
     }
 }
 
-thread_local! {
-    static ENV: RefCell<Env> = RefCell::new(Env::init());
+static ENV: LazyLock<Mutex<Env>> = LazyLock::new(|| Mutex::new(Env::init()));
+
+fn env() -> MutexGuard<'static, Env> {
+    ENV.lock().unwrap()
 }
 
 pub fn get_command(command: &str) -> Option<PathBuf> {
-    ENV.with(|env| env.borrow().get_command(command))
+    env().get_command(command)
 }
 
 pub fn get_current_dir() -> String {
-    ENV.with(|env| env.borrow().get_current_dir())
+    env().get_current_dir()
 }
 
 pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
-    ENV.with(|env| env.borrow_mut().change_dir(new_dir))
+    env().change_dir(new_dir)
 }

@@ -1,10 +1,25 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::sync::OnceLock;
 
 use crate::env;
 use crate::env::ChangeDirError;
 
-#[derive(Debug)]
+fn map() -> &'static HashMap<&'static str, Builtin> {
+    static MAP: OnceLock<HashMap<&'static str, Builtin>> = OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut m: HashMap<&'static str, Builtin> = HashMap::new();
+        m.insert("echo", Builtin::Echo);
+        m.insert("exit", Builtin::Exit);
+        m.insert("cd", Builtin::Cd);
+        m.insert("pwd", Builtin::Pwd);
+        m.insert("type", Builtin::Type);
+        m
+    })
+}
+
+#[derive(Debug, Clone)]
 enum Builtin {
     Echo,
     Exit,
@@ -17,16 +32,7 @@ enum Builtin {
 
 impl Builtin {
     fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "echo" => Some(Builtin::Echo),
-            "exit" => Some(Builtin::Exit),
-
-            "cd" => Some(Builtin::Cd),
-            "pwd" => Some(Builtin::Pwd),
-
-            "type" => Some(Builtin::Type),
-            _ => None,
-        }
+        map().get(s).map(|b| b.clone())
     }
 }
 

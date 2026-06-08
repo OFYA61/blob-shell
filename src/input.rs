@@ -50,6 +50,9 @@ pub fn get_input() -> String {
                     println!();
                     break;
                 }
+                KeyCode::Tab => {
+                    // TODO: builtint autocomplete
+                }
                 _ => {}
             }
         }
