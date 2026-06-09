@@ -88,6 +88,7 @@ pub fn get_input() -> Result<String, io::Error> {
 
                                 if auto_complete_candidates.is_empty() {
                                     ring_bell()?;
+                                    auto_complete_stage = AutoCompleteStage::None;
                                     continue;
                                 }
 
