@@ -86,6 +86,11 @@ pub fn get_input() -> Result<String, io::Error> {
                                 auto_complete_candidates.dedup();
                                 auto_complete_candidates.sort();
 
+                                if auto_complete_candidates.is_empty() {
+                                    ring_bell()?;
+                                    continue;
+                                }
+
                                 if auto_complete_candidates.len() == 1 {
                                     auto_complete_candidates
                                         .first()
