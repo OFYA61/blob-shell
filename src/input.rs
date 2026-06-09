@@ -75,6 +75,7 @@ pub fn get_input() -> Result<String, io::Error> {
                             auto_complete_candidates.clear();
                             auto_complete_candidates.append(&mut builtin::try_auto_complete(i));
                             auto_complete_candidates.append(&mut env::try_auto_complete(i));
+                            auto_complete_candidates.dedup();
                             auto_complete_candidates.sort();
                             if auto_complete_candidates.len() == 1 {
                                 auto_complete_candidates
