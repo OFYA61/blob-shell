@@ -77,6 +77,7 @@ pub fn get_input() -> Result<String, io::Error> {
                             auto_complete_candidates.append(&mut env::try_auto_complete(i));
                             auto_complete_candidates.dedup();
                             auto_complete_candidates.sort();
+
                             if auto_complete_candidates.len() == 1 {
                                 auto_complete_candidates
                                     .first()
@@ -90,9 +91,9 @@ pub fn get_input() -> Result<String, io::Error> {
                                 input.push(' ');
                                 print!(" ");
                                 io::stdout().flush()?;
-                            } else {
-                                ring_bell()?;
+                                continue;
                             }
+                            ring_bell()?;
                         } else if tab_press_count == 2 {
                             println!();
                             io::stdout().execute(MoveLeft(256))?;
