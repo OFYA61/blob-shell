@@ -119,12 +119,13 @@ pub fn get_input() -> Result<String, io::Error> {
                                     auto_complete_stage = AutoCompleteStage::FetchedCandidates;
                                     continue;
                                 }
+
+                                io::stdout().execute(MoveLeft(input.len() as u16))?;
+
                                 input.clear();
                                 input.push_str(auto_complete_lcp);
 
-                                println!();
-                                io::stdout().execute(MoveLeft(256))?;
-                                print!("$ {}", input);
+                                print!("{}", input);
                                 io::stdout().flush()?;
                                 auto_complete_stage = AutoCompleteStage::FilledLongestCommonPrefix;
                             }
