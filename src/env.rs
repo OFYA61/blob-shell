@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::sync::Mutex;
@@ -44,6 +43,7 @@ impl Env {
                         && let Ok(metadata) = fs::metadata(&p)
                         && metadata.permissions().mode() & 0o111 != 0
                         && let Some(name) = p.file_name().and_then(|name| name.to_str())
+                        && programs.get(name).is_none()
                     {
                         programs.insert(name.to_string(), p);
                     }
