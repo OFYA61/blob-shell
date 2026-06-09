@@ -12,6 +12,7 @@ use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
 
 use crate::builtin;
+use crate::env;
 
 pub fn get_input() -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
@@ -56,7 +57,15 @@ pub fn get_input() -> Result<String, io::Error> {
                     if let Some(i) = input.split(" ").last()
                         && i.len() != 0
                     {
-                        if let Some(auto_complete) = builtin::try_auto_complete(i) {
+                        if let Some(auto_complete) = builtin::try_auto_complete(i).first() {
+                            auto_complete.chars().skip(i.len()).for_each(|c| {
+                                input.push(c);
+                                print!("{}", c);
+                            });
+                            input.push(' ');
+                            print!(" ");
+                            io::stdout().flush()?;
+                        } else if let Some(auto_complete) = env::try_auto_complete(i).first() {
                             auto_complete.chars().skip(i.len()).for_each(|c| {
                                 input.push(c);
                                 print!("{}", c);
