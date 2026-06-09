@@ -94,14 +94,27 @@ pub fn get_input() -> Result<String, io::Error> {
                                 continue;
                             }
                             ring_bell()?;
-                        } else if tab_press_count == 2 {
+                        } else if tab_press_count == 2 && !auto_complete_candidates.is_empty() {
                             println!();
                             io::stdout().execute(MoveLeft(256))?;
-                            auto_complete_candidates
-                                .iter()
-                                .for_each(|candidate| print!("{} ", candidate));
+
+                            let mut lcp = auto_complete_candidates.get(0).unwrap().as_str(); // Longest common prefix
+                            auto_complete_candidates.iter().for_each(|candidate| {
+                                print!("{} ", candidate);
+                                for (index, char) in lcp.chars().enumerate() {
+                                    if let Some(candidate_char) = candidate.chars().nth(index)
+                                        && candidate_char != char
+                                    {
+                                        lcp = &lcp[..index];
+                                        break;
+                                    }
+                                }
+                            });
                             println!();
                             io::stdout().execute(MoveLeft(256))?;
+
+                            input.clear();
+                            input.push_str(lcp);
                             print!("$ {}", input);
                             io::stdout().flush()?;
                         }
