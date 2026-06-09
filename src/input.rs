@@ -14,6 +14,13 @@ use crossterm::terminal::enable_raw_mode;
 use crate::builtin;
 use crate::env;
 
+#[inline]
+fn ring_bell() -> Result<(), io::Error> {
+    print!("\x07");
+    io::stdout().flush()?;
+    Ok(())
+}
+
 pub fn get_input() -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
     io::stdout().execute(MoveLeft(256))?;
@@ -21,12 +28,18 @@ pub fn get_input() -> Result<String, io::Error> {
     std::io::stdout().flush()?;
 
     let mut input = String::new();
+    let mut tab_press_count = 0;
+    let mut auto_complete_candidates: Vec<String> = Vec::new();
 
     loop {
         if let Event::Key(KeyEvent {
             code, modifiers, ..
         }) = event::read()?
         {
+            if code != KeyCode::Tab {
+                tab_press_count = 0;
+            }
+
             match code {
                 KeyCode::Char(c) => {
                     if c == 'c' && modifiers.contains(KeyModifiers::CONTROL) {
@@ -57,26 +70,37 @@ pub fn get_input() -> Result<String, io::Error> {
                     if let Some(i) = input.split(" ").last()
                         && i.len() != 0
                     {
-                        // TODO: Remove cloning of result
-                        let auto_complete =
-                            if let Some(result) = builtin::try_auto_complete(i).first() {
-                                Some(result.clone())
-                            } else if let Some(result) = env::try_auto_complete(i).first() {
-                                Some(result.clone())
+                        tab_press_count += 1;
+                        if tab_press_count == 1 {
+                            auto_complete_candidates.clear();
+                            auto_complete_candidates.append(&mut builtin::try_auto_complete(i));
+                            auto_complete_candidates.append(&mut env::try_auto_complete(i));
+                            auto_complete_candidates.sort();
+                            if auto_complete_candidates.len() == 1 {
+                                auto_complete_candidates
+                                    .first()
+                                    .unwrap()
+                                    .chars()
+                                    .skip(i.len())
+                                    .for_each(|c| {
+                                        input.push(c);
+                                        print!("{}", c)
+                                    });
+                                input.push(' ');
+                                print!(" ");
+                                io::stdout().flush()?;
                             } else {
-                                None
-                            };
-
-                        if let Some(auto_complete) = auto_complete {
-                            auto_complete.chars().skip(i.len()).for_each(|c| {
-                                input.push(c);
-                                print!("{}", c);
-                            });
-                            input.push(' ');
-                            print!(" ");
-                            io::stdout().flush()?;
-                        } else {
-                            print!("\x07");
+                                ring_bell()?;
+                            }
+                        } else if tab_press_count == 2 {
+                            println!();
+                            io::stdout().execute(MoveLeft(256))?;
+                            auto_complete_candidates
+                                .iter()
+                                .for_each(|candidate| print!("{} ", candidate));
+                            println!();
+                            io::stdout().execute(MoveLeft(256))?;
+                            print!("$ {}", input);
                             io::stdout().flush()?;
                         }
                     }
