@@ -64,6 +64,9 @@ pub fn get_input() -> Result<String, io::Error> {
                             input.push(' ');
                             print!(" ");
                             io::stdout().flush()?;
+                        } else {
+                            print!("\x07");
+                            io::stdout().flush()?;
                         }
                     }
                 }
