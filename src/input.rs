@@ -33,6 +33,10 @@ pub fn get_input() -> Result<String, io::Error> {
                         println!();
                         break;
                     }
+                    if c == 'j' && modifiers.contains(KeyModifiers::CONTROL) {
+                        println!();
+                        break;
+                    }
                     input.push(c);
                     print!("{}", c);
                     io::stdout().flush()?;
