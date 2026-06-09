@@ -19,11 +19,11 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
     })
 }
 
-pub fn try_auto_complete(prefix: &str) -> Vec<&'static str> {
+pub fn try_auto_complete(prefix: &str) -> Vec<String> {
     map()
         .keys()
         .filter(|key| key.starts_with(prefix))
-        .map(|key| key.to_owned())
+        .map(|key| key.to_owned().to_owned())
         .collect()
 }
 

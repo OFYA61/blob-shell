@@ -57,15 +57,17 @@ pub fn get_input() -> Result<String, io::Error> {
                     if let Some(i) = input.split(" ").last()
                         && i.len() != 0
                     {
-                        if let Some(auto_complete) = builtin::try_auto_complete(i).first() {
-                            auto_complete.chars().skip(i.len()).for_each(|c| {
-                                input.push(c);
-                                print!("{}", c);
-                            });
-                            input.push(' ');
-                            print!(" ");
-                            io::stdout().flush()?;
-                        } else if let Some(auto_complete) = env::try_auto_complete(i).first() {
+                        // TODO: Remove cloning of result
+                        let auto_complete =
+                            if let Some(result) = builtin::try_auto_complete(i).first() {
+                                Some(result.clone())
+                            } else if let Some(result) = env::try_auto_complete(i).first() {
+                                Some(result.clone())
+                            } else {
+                                None
+                            };
+
+                        if let Some(auto_complete) = auto_complete {
                             auto_complete.chars().skip(i.len()).for_each(|c| {
                                 input.push(c);
                                 print!("{}", c);
