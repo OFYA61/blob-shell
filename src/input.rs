@@ -21,6 +21,12 @@ fn ring_bell() -> Result<(), io::Error> {
     Ok(())
 }
 
+enum AutoCompleteStage {
+    None,
+    FetchedCandidates,
+    FilledLongestCommonPrefix,
+}
+
 pub fn get_input() -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
     io::stdout().execute(MoveLeft(256))?;
@@ -28,8 +34,9 @@ pub fn get_input() -> Result<String, io::Error> {
     std::io::stdout().flush()?;
 
     let mut input = String::new();
-    let mut tab_press_count = 0;
+    let mut auto_complete_stage = AutoCompleteStage::None;
     let mut auto_complete_candidates: Vec<String> = Vec::new();
+    let mut auto_complete_lcp: &str;
 
     loop {
         if let Event::Key(KeyEvent {
@@ -37,7 +44,7 @@ pub fn get_input() -> Result<String, io::Error> {
         }) = event::read()?
         {
             if code != KeyCode::Tab {
-                tab_press_count = 0;
+                auto_complete_stage = AutoCompleteStage::None;
             }
 
             match code {
@@ -70,54 +77,71 @@ pub fn get_input() -> Result<String, io::Error> {
                     if let Some(i) = input.split(" ").last()
                         && i.len() != 0
                     {
-                        tab_press_count += 1;
-                        if tab_press_count == 1 {
-                            auto_complete_candidates.clear();
-                            auto_complete_candidates.append(&mut builtin::try_auto_complete(i));
-                            auto_complete_candidates.append(&mut env::try_auto_complete(i));
-                            auto_complete_candidates.dedup();
-                            auto_complete_candidates.sort();
+                        match auto_complete_stage {
+                            AutoCompleteStage::None
+                            | AutoCompleteStage::FilledLongestCommonPrefix => {
+                                auto_complete_candidates.clear();
+                                auto_complete_candidates.append(&mut builtin::try_auto_complete(i));
+                                auto_complete_candidates.append(&mut env::try_auto_complete(i));
+                                auto_complete_candidates.dedup();
+                                auto_complete_candidates.sort();
 
-                            if auto_complete_candidates.len() == 1 {
-                                auto_complete_candidates
-                                    .first()
-                                    .unwrap()
-                                    .chars()
-                                    .skip(i.len())
-                                    .for_each(|c| {
-                                        input.push(c);
-                                        print!("{}", c)
-                                    });
-                                input.push(' ');
-                                print!(" ");
-                                io::stdout().flush()?;
-                                continue;
-                            }
-                            ring_bell()?;
-                        } else if tab_press_count == 2 && !auto_complete_candidates.is_empty() {
-                            println!();
-                            io::stdout().execute(MoveLeft(256))?;
-
-                            let mut lcp = auto_complete_candidates.get(0).unwrap().as_str(); // Longest common prefix
-                            auto_complete_candidates.iter().for_each(|candidate| {
-                                print!("{} ", candidate);
-                                for (index, char) in lcp.chars().enumerate() {
-                                    if let Some(candidate_char) = candidate.chars().nth(index)
-                                        && candidate_char != char
-                                    {
-                                        lcp = &lcp[..index];
-                                        break;
-                                    }
+                                if auto_complete_candidates.len() == 1 {
+                                    auto_complete_candidates
+                                        .first()
+                                        .unwrap()
+                                        .chars()
+                                        .skip(i.len())
+                                        .for_each(|c| {
+                                            input.push(c);
+                                            print!("{}", c)
+                                        });
+                                    input.push(' ');
+                                    print!(" ");
+                                    io::stdout().flush()?;
+                                    continue;
                                 }
-                            });
-                            println!();
-                            io::stdout().execute(MoveLeft(256))?;
 
-                            input.clear();
-                            input.push_str(lcp);
-                            print!("$ {}", input);
-                            io::stdout().flush()?;
-                        }
+                                auto_complete_lcp =
+                                    auto_complete_candidates.get(0).unwrap().as_str();
+                                auto_complete_candidates.iter().for_each(|candidate| {
+                                    for (index, char) in auto_complete_lcp.chars().enumerate() {
+                                        if let Some(candidate_char) = candidate.chars().nth(index)
+                                            && candidate_char != char
+                                        {
+                                            auto_complete_lcp = &auto_complete_lcp[..index];
+                                            break;
+                                        }
+                                    }
+                                });
+                                if input == auto_complete_lcp {
+                                    ring_bell()?;
+                                    auto_complete_stage = AutoCompleteStage::FetchedCandidates;
+                                    continue;
+                                }
+                                input.clear();
+                                input.push_str(auto_complete_lcp);
+
+                                println!();
+                                io::stdout().execute(MoveLeft(256))?;
+                                print!("$ {}", input);
+                                io::stdout().flush()?;
+                                auto_complete_stage = AutoCompleteStage::FilledLongestCommonPrefix;
+                            }
+                            AutoCompleteStage::FetchedCandidates => {
+                                println!();
+                                io::stdout().execute(MoveLeft(256))?;
+
+                                auto_complete_candidates.iter().for_each(|candidate| {
+                                    print!("{} ", candidate);
+                                });
+                                println!();
+                                io::stdout().execute(MoveLeft(256))?;
+
+                                print!("$ {}", input);
+                                io::stdout().flush()?;
+                            }
+                        };
                     }
                 }
                 _ => {}
