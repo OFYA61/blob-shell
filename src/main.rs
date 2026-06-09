@@ -10,9 +10,18 @@ use std::io::Write;
 use std::process::Stdio;
 use std::thread;
 
+use crossterm::terminal::disable_raw_mode;
+
 fn main() {
     loop {
-        let command_raw = input::get_input();
+        let command_raw = match input::get_input() {
+            Ok(input) => input,
+            Err(err) => {
+                disable_raw_mode().expect("Failed to disable raw mode");
+                println!();
+                panic!("Failed to read input {:?}", err);
+            }
+        };
 
         let command_raw = command_raw.trim();
         if command_raw.is_empty() {

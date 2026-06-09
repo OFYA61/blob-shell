@@ -19,6 +19,14 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
     })
 }
 
+pub fn try_auto_complete(s: &str) -> Option<&'static str> {
+    map()
+        .keys()
+        .filter(|key| key.starts_with(s))
+        .nth(0)
+        .map(|key| key.to_owned())
+}
+
 #[derive(Debug, Clone)]
 enum Builtin {
     Echo,

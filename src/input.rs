@@ -8,21 +8,23 @@ use crossterm::event::Event;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
+use crossterm::terminal::disable_raw_mode;
+use crossterm::terminal::enable_raw_mode;
 
-pub fn get_input() -> String {
-    crossterm::terminal::enable_raw_mode().expect("Failed to enable raw mode");
-    io::stdout()
-        .execute(MoveLeft(256))
-        .expect("Failed to bring cursor to start of line");
+use crate::builtin;
+
+pub fn get_input() -> Result<String, io::Error> {
+    enable_raw_mode().expect("Failed to enable raw mode");
+    io::stdout().execute(MoveLeft(256))?;
     print!("$ ");
-    std::io::stdout().flush().expect("Failed to flush stdout");
+    std::io::stdout().flush()?;
 
     let mut input = String::new();
 
     loop {
         if let Event::Key(KeyEvent {
             code, modifiers, ..
-        }) = event::read().expect("Failed to read input")
+        }) = event::read()?
         {
             match code {
                 KeyCode::Char(c) => {
@@ -33,17 +35,13 @@ pub fn get_input() -> String {
                     }
                     input.push(c);
                     print!("{}", c);
-                    io::stdout().flush().expect("Failed to flush stdout");
+                    io::stdout().flush()?;
                 }
                 KeyCode::Backspace => {
                     if input.pop().is_some() {
-                        io::stdout()
-                            .execute(MoveLeft(1))
-                            .expect("Failed to execute stdout");
+                        io::stdout().execute(MoveLeft(1))?;
                         print!(" ");
-                        io::stdout()
-                            .execute(MoveLeft(1))
-                            .expect("Failed to execute stdout");
+                        io::stdout().execute(MoveLeft(1))?;
                     }
                 }
                 KeyCode::Enter => {
@@ -51,18 +49,28 @@ pub fn get_input() -> String {
                     break;
                 }
                 KeyCode::Tab => {
-                    // TODO: builtint autocomplete
+                    if let Some(i) = input.split(" ").last()
+                        && i.len() != 0
+                    {
+                        if let Some(auto_complete) = builtin::try_auto_complete(i) {
+                            auto_complete.chars().skip(i.len()).for_each(|c| {
+                                input.push(c);
+                                print!("{}", c);
+                            });
+                            input.push(' ');
+                            print!(" ");
+                            io::stdout().flush()?;
+                        }
+                    }
                 }
                 _ => {}
             }
         }
     }
 
-    io::stdout()
-        .execute(MoveLeft(256))
-        .expect("Failed to bring cursor to start of line");
+    io::stdout().execute(MoveLeft(256))?;
 
-    crossterm::terminal::disable_raw_mode().expect("Failed to disable raw mode");
+    disable_raw_mode()?;
 
-    input
+    Ok(input)
 }
