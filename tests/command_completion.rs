@@ -42,5 +42,6 @@ fn test_multiple_executable_completion() {
         "xyz\t\t",
         "xyz\x07\n\u{1b}[256Dxyz xyz_abc xyz_abc_def \n\u{1b}[256D$ xyz",
     );
-    shell.test_autocompletion("_\t", "xyz_abc");
+    shell.test_autocompletion("_\t", "abc");
+    shell.test_autocompletion("_\t", "def");
 }

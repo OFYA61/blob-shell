@@ -36,7 +36,6 @@ pub fn get_input() -> Result<String, io::Error> {
     let mut input = String::new();
     let mut auto_complete_stage = AutoCompleteStage::None;
     let mut auto_complete_candidates: Vec<String> = Vec::new();
-    let mut auto_complete_lcp: &str;
 
     loop {
         if let Event::Key(KeyEvent {
@@ -108,7 +107,7 @@ pub fn get_input() -> Result<String, io::Error> {
                                     continue;
                                 }
 
-                                auto_complete_lcp =
+                                let mut auto_complete_lcp =
                                     auto_complete_candidates.get(0).unwrap().as_str();
                                 auto_complete_candidates.iter().for_each(|candidate| {
                                     for (index, char) in auto_complete_lcp.chars().enumerate() {
@@ -126,12 +125,12 @@ pub fn get_input() -> Result<String, io::Error> {
                                     continue;
                                 }
 
-                                io::stdout().execute(MoveLeft(input.len() as u16))?;
+                                let old_input_len = input.len();
 
                                 input.clear();
                                 input.push_str(auto_complete_lcp);
 
-                                print!("{}", input);
+                                print!("{}", input.chars().skip(old_input_len).collect::<String>());
                                 io::stdout().flush()?;
                                 auto_complete_stage = AutoCompleteStage::FilledLongestCommonPrefix;
                             }
