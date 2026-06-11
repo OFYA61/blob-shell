@@ -25,6 +25,7 @@ enum AutoCompleteStage {
     None,
     FetchedCandidates,
     FilledLongestCommonPrefix,
+    CompletedOnlyCandidate,
 }
 
 pub fn get_input() -> Result<String, io::Error> {
@@ -73,8 +74,10 @@ pub fn get_input() -> Result<String, io::Error> {
                     break;
                 }
                 KeyCode::Tab => {
-                    if let Some(i) = input.split(" ").last()
-                        && i.len() != 0
+                    let input_split = input.split(" ").collect::<Vec<&str>>();
+                    if input_split.len() == 1
+                        && let Some(i) = input_split.first()
+                        && !i.is_empty()
                     {
                         match auto_complete_stage {
                             AutoCompleteStage::None
@@ -104,6 +107,7 @@ pub fn get_input() -> Result<String, io::Error> {
                                     input.push(' ');
                                     print!(" ");
                                     io::stdout().flush()?;
+                                    auto_complete_stage = AutoCompleteStage::CompletedOnlyCandidate;
                                     continue;
                                 }
 
@@ -147,6 +151,7 @@ pub fn get_input() -> Result<String, io::Error> {
                                 print!("$ {}", input);
                                 io::stdout().flush()?;
                             }
+                            AutoCompleteStage::CompletedOnlyCandidate => {}
                         };
                     }
                 }
