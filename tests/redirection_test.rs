@@ -9,28 +9,34 @@ fn test_stdout_redirection_new_file() {
     let dir = create_dir();
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("echo hello > output.txt", "");
-    shell.test_command("echo hello world 1> output2.txt", "");
-    shell.exit();
+    shell.send("echo hello > output.txt");
+    shell.exp_string("echo hello > output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "hello");
 
-    TestFile::open(&dir, "output.txt").assert_file_contents("hello\n");
-    TestFile::open(&dir, "output2.txt").assert_file_contents("hello world\n");
+    shell.send("echo hello world 1> output2.txt");
+    shell.exp_string("echo hello world 1> output2.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output2.txt", "hello world");
 }
 
 #[test]
 fn test_stdout_redirection_existing_file() {
     let dir = create_dir();
 
-    let test_file1 = TestFile::create(&dir, "output.txt", "some random content");
-    let test_file2 = TestFile::create(&dir, "output2.txt", "some random content 2");
+    let _ = TestFile::create(&dir, "output.txt", "some random content");
+    let _ = TestFile::create(&dir, "output2.txt", "some random content 2");
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("echo hello > output.txt", "");
-    shell.test_command("echo hello world 1> output2.txt", "");
-    shell.exit();
+    shell.send("echo hello > output.txt");
+    shell.exp_string("echo hello > output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "hello");
 
-    test_file1.assert_file_contents("hello\n");
-    test_file2.assert_file_contents("hello world\n");
+    shell.send("echo hello world 1> output2.txt");
+    shell.exp_string("echo hello world 1> output2.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output2.txt", "hello world");
 }
 
 #[test]
@@ -38,28 +44,34 @@ fn test_stdout_redirection_append_new_file() {
     let dir = create_dir();
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("echo hello >> output.txt", "");
-    shell.test_command("echo hello world 1>> output2.txt", "");
-    shell.exit();
+    shell.send("echo hello >> output.txt");
+    shell.exp_string("echo hello >> output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "hello");
 
-    TestFile::open(&dir, "output.txt").assert_file_contents("hello\n");
-    TestFile::open(&dir, "output2.txt").assert_file_contents("hello world\n");
+    shell.send("echo hello world 1>> output2.txt");
+    shell.exp_string("echo hello world 1>> output2.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output2.txt", "hello world");
 }
 
 #[test]
 fn test_stdout_redirection_append_existing_file() {
     let dir = create_dir();
 
-    let test_file1 = TestFile::create(&dir, "output.txt", "some random content");
-    let test_file2 = TestFile::create(&dir, "output2.txt", "some random content 2");
+    let _ = TestFile::create(&dir, "output.txt", "some random content");
+    let _ = TestFile::create(&dir, "output2.txt", "some random content 2");
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("echo hello >> output.txt", "");
-    shell.test_command("echo hello world 1>> output2.txt", "");
-    shell.exit();
+    shell.send("echo hello >> output.txt");
+    shell.exp_string("echo hello >> output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "some random contenthello");
 
-    test_file1.assert_file_contents("some random contenthello\n");
-    test_file2.assert_file_contents("some random content 2hello world\n");
+    shell.send("echo hello world 1>> output2.txt");
+    shell.exp_string("echo hello world 1>> output2.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output2.txt", "some random content 2hello world");
 }
 
 #[test]
@@ -67,24 +79,23 @@ fn test_stderr_redirection_new_file() {
     let dir = create_dir();
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("cat nonexistent 2> output.txt", "");
-    shell.exit();
-
-    TestFile::open(&dir, "output.txt")
-        .assert_file_contents("cat: nonexistent: No such file or directory\n");
+    shell.send("cat nonexistent 2> output.txt");
+    shell.exp_string("cat nonexistent 2> output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "cat: nonexistent: No such file or directory");
 }
 
 #[test]
 fn test_stderr_redirection_existing_file() {
     let dir = create_dir();
 
-    let test_file = TestFile::create(&dir, "output.txt", "some random content");
+    let _ = TestFile::create(&dir, "output.txt", "some random content");
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("cat nonexistent 2> output.txt", "");
-    shell.exit();
-
-    test_file.assert_file_contents("cat: nonexistent: No such file or directory\n");
+    shell.send("cat nonexistent 2> output.txt");
+    shell.exp_string("cat nonexistent 2> output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "cat: nonexistent: No such file or directory");
 }
 
 #[test]
@@ -92,23 +103,24 @@ fn test_stderr_redirection_append_new_file() {
     let dir = create_dir();
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("cat nonexistent 2>> output.txt", "");
-    shell.exit();
-
-    TestFile::open(&dir, "output.txt")
-        .assert_file_contents("cat: nonexistent: No such file or directory\n");
+    shell.send("cat nonexistent 2>> output.txt");
+    shell.exp_string("cat nonexistent 2>> output.txt");
+    shell.send("\r");
+    shell.cat_file_contents("output.txt", "cat: nonexistent: No such file or directory");
 }
 
 #[test]
 fn test_stderr_redirection_append_existing_file() {
     let dir = create_dir();
 
-    let test_file = TestFile::create(&dir, "output.txt", "some random content");
+    let _ = TestFile::create(&dir, "output.txt", "some random content");
 
     let mut shell = TestShell::new_with_cd(dir.path().to_str().unwrap());
-    shell.test_command("cat nonexistent 2>> output.txt", "");
-    shell.exit();
-
-    test_file
-        .assert_file_contents("some random contentcat: nonexistent: No such file or directory\n");
+    shell.send("cat nonexistent 2>> output.txt");
+    shell.exp_string("cat nonexistent 2>> output.txt");
+    shell.send("\r");
+    shell.cat_file_contents(
+        "output.txt",
+        "some random contentcat: nonexistent: No such file or directory",
+    );
 }

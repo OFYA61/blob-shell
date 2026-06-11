@@ -7,5 +7,6 @@ rust-version = "1.95"
 
 [dependencies]
 crossterm = "0.29.0"
+retry = "2.2.0"
 rexpect = "0.7.1"
 tempfile = "3.27.0"

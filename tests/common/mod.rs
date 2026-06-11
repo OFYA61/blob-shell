@@ -2,12 +2,12 @@
 
 use std::env;
 use std::fs::File;
-use std::io::Read;
 use std::io::Write;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 use std::process::Command;
 
+use retry::delay::Fixed;
 use rexpect;
 use rexpect::session::PtySession;
 use rexpect::session::spawn_command;
@@ -69,70 +69,20 @@ impl TestShell {
 
     pub fn new_with_cd(cd_dir: &str) -> Self {
         let mut shell = Self::new();
-        shell.test_command(&format!("cd {}", cd_dir), "");
-
+        shell.send(&format!("cd {}\r", cd_dir));
         shell
     }
 
-    pub fn test_command(&mut self, command: &str, expected_output: &str) {
-        self.send(command);
-        self.flush();
-        self.exp_string(command);
-
-        self.send("\r");
-        self.flush();
-
-        self.exp_string(expected_output);
-        self.exp_string("$ ");
-    }
-
-    pub fn test_autocompletion(&mut self, command: &str, expected_command_regex: &str) {
-        assert!(command.contains("\t"));
-
-        self.send(command);
-        self.flush();
-        self.exp_string(expected_command_regex);
-    }
-
-    pub fn test_autocompletion_command(
-        &mut self,
-        command: &str,
-        expected_command: &str,
-        expected_output: &str,
-    ) {
-        assert!(command.contains("\t"));
-
-        self.send(command);
-        self.flush();
-        self.exp_string(expected_command);
-
-        self.send("\r");
-        self.flush();
-
-        self.exp_string(expected_output);
-        self.exp_string("$ ");
-    }
-
-    pub fn test_return(&mut self, expected_output: &str) {
-        self.send("\r");
-        self.flush();
-
-        self.exp_string(expected_output);
-        self.exp_string("$ ");
-    }
-
-    pub fn exit(&mut self) {
-        self.send("exit\r");
-        self.flush();
-    }
-
-    fn send(&mut self, command: &str) {
+    /// Send a sequence of strings as input
+    pub fn send(&mut self, input: &str) {
         self.pty_session
-            .send(command)
+            .send(input)
             .expect("Failed to send command");
+        self.pty_session.flush().expect("Failed to flush");
     }
 
-    fn exp_string(&mut self, expected: &str) {
+    /// Assert that the given string showed up on stdout
+    pub fn exp_string(&mut self, expected: &str) {
         if expected.is_empty() {
             return;
         }
@@ -141,8 +91,24 @@ impl TestShell {
             .expect("Failed to check on expected value");
     }
 
-    fn flush(&mut self) {
-        self.pty_session.flush().expect("Failed to flush");
+    /// Use to assert file contents
+    pub fn cat_file_contents(&mut self, file_name: &str, expected_content: &str) {
+        let cmd = format!("cat {}", file_name);
+        self.send(&cmd);
+        self.exp_string(&cmd);
+        self.send("\r");
+        self.exp_string(expected_content);
+    }
+
+    pub fn assert_is_terminated(&self) {
+        let result = retry::retry(Fixed::from_millis(1000).take(10), || {
+            if self.pty_session.process().status().is_none() {
+                Ok(())
+            } else {
+                Err("Program did not exit in time")
+            }
+        });
+        assert!(result.is_ok());
     }
 }
 
@@ -173,16 +139,6 @@ impl TestFile {
         let path = dir.path().join(name);
         println!("Creating test file {:?}", path);
         Self { path }
-    }
-
-    pub fn assert_file_contents(&self, expected_content: &str) {
-        println!("Asserting file contents for {:?}", self.path);
-
-        let mut file = File::open(&self.path).expect("Failed to open file");
-        let mut content = String::new();
-        file.read_to_string(&mut content)
-            .expect("Failed to read file contents");
-        assert_eq!(content, expected_content);
     }
 }
 

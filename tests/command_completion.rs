@@ -7,17 +7,19 @@ use self::common::create_dir;
 #[test]
 fn test_builtin_completion() {
     let mut shell = TestShell::new();
-    shell.test_autocompletion_command("ech\t123", "echo 123", "123");
+    shell.send("ech\t123");
+    shell.exp_string("echo 123");
+    shell.send("\r");
+    shell.exp_string("123");
 }
 
 #[test]
 fn test_missing_completion() {
     let mut shell = TestShell::new();
-    shell.test_autocompletion_command(
-        "invalid_command\t",
-        "invalid_command\x07",
-        "invalid_command: command not found",
-    );
+    shell.send("invalid_command\t");
+    shell.exp_string("invalid_command\x07");
+    shell.send("\r");
+    shell.exp_string("invalid_command: command not found");
 }
 
 #[test]
@@ -26,7 +28,9 @@ fn test_executable_completion() {
     let _ = TestExecutable::create(&dir, "xyz");
 
     let mut shell = TestShell::new_with_extra_path(&dir);
-    shell.test_autocompletion_command("xy\t", "xyz ", "");
+    shell.send("xy\t");
+    shell.exp_string("xyz ");
+    shell.send("\r");
 }
 
 #[test]
@@ -37,11 +41,10 @@ fn test_multiple_executable_completion() {
     let _ = TestExecutable::create(&dir, "xyz_abc_def");
 
     let mut shell = TestShell::new_with_extra_path(&dir);
-    // TODO: find a nicer way to include termianl command byte assertions
-    shell.test_autocompletion(
-        "xyz\t\t",
-        "xyz\x07\n\u{1b}[256Dxyz xyz_abc xyz_abc_def \n\u{1b}[256D$ xyz",
-    );
-    shell.test_autocompletion("_\t", "abc");
-    shell.test_autocompletion("_\t", "def");
+    shell.send("xyz\t\t");
+    shell.exp_string("xyz\x07\n\u{1b}[256Dxyz xyz_abc xyz_abc_def \n\u{1b}[256D$ xyz");
+    shell.send("_\t");
+    shell.exp_string("abc");
+    shell.send("_\t");
+    shell.exp_string("def");
 }
