@@ -28,4 +28,11 @@ impl Candidate {
     pub fn chars(&self) -> Chars<'_> {
         self.as_str().chars()
     }
+
+    pub fn is_directory(&self) -> bool {
+        match self {
+            Candidate::Directory(_) => true,
+            _ => false,
+        }
+    }
 }

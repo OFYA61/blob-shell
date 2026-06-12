@@ -22,11 +22,10 @@ fn ring_bell() -> Result<(), io::Error> {
     Ok(())
 }
 
-enum AutoCompleteStage {
+enum AutoCompleteAction {
     None,
-    FetchedCandidates,
-    FilledLongestCommonPrefix,
-    CompletedOnlyCandidate,
+    FetchCandidates,
+    DislpayCandidates,
 }
 
 struct Candidates {
@@ -71,7 +70,7 @@ pub fn get_input() -> Result<String, io::Error> {
     std::io::stdout().flush()?;
 
     let mut input = String::new();
-    let mut auto_complete_stage = AutoCompleteStage::None;
+    let mut next_auto_complete_action = AutoCompleteAction::FetchCandidates;
     let mut auto_complete_candidates = Candidates::init();
 
     loop {
@@ -80,7 +79,7 @@ pub fn get_input() -> Result<String, io::Error> {
         }) = event::read()?
         {
             if code != KeyCode::Tab {
-                auto_complete_stage = AutoCompleteStage::None;
+                next_auto_complete_action = AutoCompleteAction::FetchCandidates;
             }
 
             match code {
@@ -114,10 +113,9 @@ pub fn get_input() -> Result<String, io::Error> {
                     if let Some(i) = input_split.last()
                         && (!i.is_empty() || input_split.len() > 1)
                     {
-                        match auto_complete_stage {
-                            AutoCompleteStage::None
-                            | AutoCompleteStage::FilledLongestCommonPrefix
-                            | AutoCompleteStage::CompletedOnlyCandidate => {
+                        match next_auto_complete_action {
+                            AutoCompleteAction::None => {}
+                            AutoCompleteAction::FetchCandidates => {
                                 let mut chars_to_skip_on_auto_complete = i.len();
 
                                 auto_complete_candidates.clear();
@@ -147,7 +145,7 @@ pub fn get_input() -> Result<String, io::Error> {
 
                                 if auto_complete_candidates.list.is_empty() {
                                     ring_bell()?;
-                                    auto_complete_stage = AutoCompleteStage::None;
+                                    next_auto_complete_action = AutoCompleteAction::FetchCandidates;
                                     continue;
                                 }
 
@@ -163,7 +161,11 @@ pub fn get_input() -> Result<String, io::Error> {
                                     input.push(candidate.get_trailing_char());
                                     print!("{}", candidate.get_trailing_char());
                                     io::stdout().flush()?;
-                                    auto_complete_stage = AutoCompleteStage::CompletedOnlyCandidate;
+                                    next_auto_complete_action = if candidate.is_directory() {
+                                        AutoCompleteAction::FetchCandidates
+                                    } else {
+                                        AutoCompleteAction::None
+                                    };
                                     continue;
                                 }
 
@@ -181,7 +183,8 @@ pub fn get_input() -> Result<String, io::Error> {
                                 });
                                 if input == auto_complete_lcp {
                                     ring_bell()?;
-                                    auto_complete_stage = AutoCompleteStage::FetchedCandidates;
+                                    next_auto_complete_action =
+                                        AutoCompleteAction::DislpayCandidates;
                                     continue;
                                 }
 
@@ -192,9 +195,9 @@ pub fn get_input() -> Result<String, io::Error> {
 
                                 print!("{}", input.chars().skip(old_input_len).collect::<String>());
                                 io::stdout().flush()?;
-                                auto_complete_stage = AutoCompleteStage::FilledLongestCommonPrefix;
+                                next_auto_complete_action = AutoCompleteAction::DislpayCandidates;
                             }
-                            AutoCompleteStage::FetchedCandidates => {
+                            AutoCompleteAction::DislpayCandidates => {
                                 println!();
                                 io::stdout().execute(MoveLeft(256))?;
 
