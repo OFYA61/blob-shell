@@ -81,12 +81,27 @@ impl Env {
         env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
     }
 
-    fn try_auto_complete(&self, prefix: &str) -> Vec<String> {
+    fn try_auto_complete_program(&self, prefix: &str) -> Vec<String> {
         self.programs
             .keys()
             .filter(|name| name.starts_with(prefix))
             .cloned()
             .collect()
+    }
+
+    fn try_auto_complete_path(&self, prefix: &str) -> Vec<String> {
+        let mut candidates = Vec::new();
+        if let Ok(entries) = fs::read_dir(&self.get_current_dir()) {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.path().file_name()
+                    && let Some(name) = name.to_str()
+                    && name.starts_with(prefix)
+                {
+                    candidates.push(name.to_owned());
+                }
+            }
+        }
+        candidates
     }
 }
 
@@ -107,6 +122,10 @@ pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
     env().change_dir(new_dir)
 }
 
-pub fn try_auto_complete(prefix: &str) -> Vec<String> {
-    env().try_auto_complete(prefix)
+pub fn try_auto_complete_program(prefix: &str) -> Vec<String> {
+    env().try_auto_complete_program(prefix)
+}
+
+pub fn try_auto_complete_path(prefix: &str) -> Vec<String> {
+    env().try_auto_complete_path(prefix)
 }

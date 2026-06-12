@@ -75,16 +75,22 @@ pub fn get_input() -> Result<String, io::Error> {
                 }
                 KeyCode::Tab => {
                     let input_split = input.split(" ").collect::<Vec<&str>>();
-                    if input_split.len() == 1
-                        && let Some(i) = input_split.first()
+                    if let Some(i) = input_split.last()
                         && !i.is_empty()
                     {
                         match auto_complete_stage {
                             AutoCompleteStage::None
                             | AutoCompleteStage::FilledLongestCommonPrefix => {
                                 auto_complete_candidates.clear();
-                                auto_complete_candidates.append(&mut builtin::try_auto_complete(i));
-                                auto_complete_candidates.append(&mut env::try_auto_complete(i));
+                                if input_split.len() == 1 {
+                                    auto_complete_candidates
+                                        .append(&mut builtin::try_auto_complete(i));
+                                    auto_complete_candidates
+                                        .append(&mut env::try_auto_complete_program(i));
+                                } else {
+                                    auto_complete_candidates
+                                        .append(&mut env::try_auto_complete_path(i));
+                                }
                                 auto_complete_candidates.dedup();
                                 auto_complete_candidates.sort();
 
