@@ -7,6 +7,8 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 
+use crate::autocomplete::Candidate;
+
 #[derive(Debug)]
 pub enum ChangeDirError {
     DoesNotExist,
@@ -84,25 +86,31 @@ impl Env {
         env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
     }
 
-    fn try_auto_complete_program(&self, prefix: &str) -> Vec<String> {
+    fn try_auto_complete_program(&self, prefix: &str) -> Vec<Candidate> {
         self.programs
             .keys()
             .filter(|name| name.starts_with(prefix))
             .cloned()
+            .map(|s| Candidate::Program(s))
             .collect()
     }
 
-    fn try_auto_complete_path(&self, subdir: &str, prefix: &str) -> Vec<String> {
+    fn try_auto_complete_path(&self, subdir: &str, prefix: &str) -> Vec<Candidate> {
         let mut candidates = Vec::new();
         let dir = self.get_current_dir().join(subdir);
 
         if let Ok(entries) = fs::read_dir(&dir) {
             for entry in entries.flatten() {
-                if let Some(name) = entry.path().file_name()
+                let p = entry.path();
+                if let Some(name) = p.file_name()
                     && let Some(name) = name.to_str()
                     && name.starts_with(prefix)
                 {
-                    candidates.push(name.to_owned());
+                    if p.is_dir() {
+                        candidates.push(Candidate::Directory(name.to_owned()));
+                    } else {
+                        candidates.push(Candidate::File(name.to_owned()));
+                    }
                 }
             }
         }
@@ -128,10 +136,10 @@ pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
     env().change_dir(new_dir)
 }
 
-pub fn try_auto_complete_program(prefix: &str) -> Vec<String> {
+pub fn try_auto_complete_program(prefix: &str) -> Vec<Candidate> {
     env().try_auto_complete_program(prefix)
 }
 
-pub fn try_auto_complete_path(subdir: &str, prefix: &str) -> Vec<String> {
+pub fn try_auto_complete_path(subdir: &str, prefix: &str) -> Vec<Candidate> {
     env().try_auto_complete_path(subdir, prefix)
 }

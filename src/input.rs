@@ -11,6 +11,7 @@ use crossterm::event::KeyModifiers;
 use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
 
+use crate::autocomplete::Candidate;
 use crate::builtin;
 use crate::env;
 
@@ -28,6 +29,41 @@ enum AutoCompleteStage {
     CompletedOnlyCandidate,
 }
 
+struct Candidates {
+    list: Vec<Candidate>,
+}
+
+impl Candidates {
+    fn init() -> Self {
+        Candidates { list: vec![] }
+    }
+
+    fn append(&mut self, other_list: &mut Vec<Candidate>) {
+        self.list.append(other_list);
+    }
+
+    fn sort(&mut self) {
+        self.list.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+    }
+
+    fn dedup(&mut self) {
+        self.list.dedup_by(|a, b| {
+            let a_str = a.as_str();
+            let b_str = b.as_str();
+
+            if a_str != b_str {
+                return false;
+            }
+
+            !matches!(a, Candidate::Directory(_)) && !matches!(b, Candidate::Directory(_))
+        });
+    }
+
+    fn clear(&mut self) {
+        self.list.clear();
+    }
+}
+
 pub fn get_input() -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
     io::stdout().execute(MoveLeft(256))?;
@@ -36,7 +72,7 @@ pub fn get_input() -> Result<String, io::Error> {
 
     let mut input = String::new();
     let mut auto_complete_stage = AutoCompleteStage::None;
-    let mut auto_complete_candidates: Vec<String> = Vec::new();
+    let mut auto_complete_candidates = Candidates::init();
 
     loop {
         if let Event::Key(KeyEvent {
@@ -102,35 +138,34 @@ pub fn get_input() -> Result<String, io::Error> {
                                         .append(&mut env::try_auto_complete_path(dir, file_prefix));
                                     chars_to_skip_on_auto_complete = file_prefix.len();
                                 }
-                                auto_complete_candidates.dedup();
                                 auto_complete_candidates.sort();
+                                auto_complete_candidates.dedup();
 
-                                if auto_complete_candidates.is_empty() {
+                                if auto_complete_candidates.list.is_empty() {
                                     ring_bell()?;
                                     auto_complete_stage = AutoCompleteStage::None;
                                     continue;
                                 }
 
-                                if auto_complete_candidates.len() == 1 {
-                                    auto_complete_candidates
-                                        .first()
-                                        .unwrap()
+                                if auto_complete_candidates.list.len() == 1 {
+                                    let candidate = auto_complete_candidates.list.first().unwrap();
+                                    candidate
                                         .chars()
                                         .skip(chars_to_skip_on_auto_complete)
                                         .for_each(|c| {
                                             input.push(c);
                                             print!("{}", c)
                                         });
-                                    input.push(' ');
-                                    print!(" ");
+                                    input.push(candidate.get_trailing_char());
+                                    print!("{}", candidate.get_trailing_char());
                                     io::stdout().flush()?;
                                     auto_complete_stage = AutoCompleteStage::CompletedOnlyCandidate;
                                     continue;
                                 }
 
                                 let mut auto_complete_lcp =
-                                    auto_complete_candidates.get(0).unwrap().as_str();
-                                auto_complete_candidates.iter().for_each(|candidate| {
+                                    auto_complete_candidates.list.get(0).unwrap().as_str();
+                                auto_complete_candidates.list.iter().for_each(|candidate| {
                                     for (index, char) in auto_complete_lcp.chars().enumerate() {
                                         if let Some(candidate_char) = candidate.chars().nth(index)
                                             && candidate_char != char
@@ -159,8 +194,8 @@ pub fn get_input() -> Result<String, io::Error> {
                                 println!();
                                 io::stdout().execute(MoveLeft(256))?;
 
-                                auto_complete_candidates.iter().for_each(|candidate| {
-                                    print!("{} ", candidate);
+                                auto_complete_candidates.list.iter().for_each(|candidate| {
+                                    print!("{} ", candidate.as_str());
                                 });
                                 println!();
                                 io::stdout().execute(MoveLeft(256))?;

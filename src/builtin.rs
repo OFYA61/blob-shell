@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::OnceLock;
 
+use crate::autocomplete::Candidate;
 use crate::env;
 use crate::env::ChangeDirError;
 
@@ -19,11 +20,11 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
     })
 }
 
-pub fn try_auto_complete(prefix: &str) -> Vec<String> {
+pub fn try_auto_complete(prefix: &str) -> Vec<Candidate> {
     map()
         .keys()
         .filter(|key| key.starts_with(prefix))
-        .map(|key| key.to_owned().to_owned())
+        .map(|key| Candidate::Builtin(key.to_owned().to_owned()))
         .collect()
 }
 
