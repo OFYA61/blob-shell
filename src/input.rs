@@ -81,6 +81,8 @@ pub fn get_input() -> Result<String, io::Error> {
                         match auto_complete_stage {
                             AutoCompleteStage::None
                             | AutoCompleteStage::FilledLongestCommonPrefix => {
+                                let mut chars_to_skip_on_auto_complete = i.len();
+
                                 auto_complete_candidates.clear();
                                 if input_split.len() == 1 {
                                     auto_complete_candidates
@@ -88,8 +90,17 @@ pub fn get_input() -> Result<String, io::Error> {
                                     auto_complete_candidates
                                         .append(&mut env::try_auto_complete_program(i));
                                 } else {
+                                    let dir;
+                                    let file_prefix;
+                                    if i.contains("/") {
+                                        (dir, file_prefix) = i.rsplit_once("/").unwrap();
+                                    } else {
+                                        dir = ".";
+                                        file_prefix = i;
+                                    }
                                     auto_complete_candidates
-                                        .append(&mut env::try_auto_complete_path(i));
+                                        .append(&mut env::try_auto_complete_path(dir, file_prefix));
+                                    chars_to_skip_on_auto_complete = file_prefix.len();
                                 }
                                 auto_complete_candidates.dedup();
                                 auto_complete_candidates.sort();
@@ -105,7 +116,7 @@ pub fn get_input() -> Result<String, io::Error> {
                                         .first()
                                         .unwrap()
                                         .chars()
-                                        .skip(i.len())
+                                        .skip(chars_to_skip_on_auto_complete)
                                         .for_each(|c| {
                                             input.push(c);
                                             print!("{}", c)

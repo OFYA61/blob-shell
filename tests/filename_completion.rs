@@ -16,3 +16,16 @@ fn test_file_completion() {
     shell.send("\r");
     shell.exp_string("Hello World!");
 }
+
+#[test]
+fn test_file_in_subfolder_completion() {
+    let dir = create_dir();
+
+    let _ = TestFile::create(&dir, "subfolder/test.txt", "Hello World!");
+
+    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    shell.send("cat subfolder/tes\t");
+    shell.exp_string("cat subfolder/test.txt");
+    shell.send("\r");
+    shell.exp_string("Hello World!");
+}

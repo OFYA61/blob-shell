@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::env;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::os::unix::fs::symlink;
@@ -116,7 +117,7 @@ pub fn create_dir() -> tempfile::TempDir {
     println!("Creating temprorary directory");
     let dir = tempfile::tempdir().expect("Failed to create temp dir");
     println!("Created temproary directory {:?}", dir.path());
-    return dir;
+    dir
 }
 
 pub struct TestFile {
@@ -126,6 +127,10 @@ pub struct TestFile {
 impl TestFile {
     pub fn create(dir: &tempfile::TempDir, name: &str, content: &str) -> Self {
         let test_file = Self::open(dir, name);
+
+        if let Some(path) = test_file.path.parent() {
+            fs::create_dir_all(path).expect("Failed to create path all");
+        }
 
         let mut file = File::create(&test_file.path).expect("Failed to create test file");
         file.write_all(content.as_bytes())

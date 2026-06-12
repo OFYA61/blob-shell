@@ -62,9 +62,12 @@ impl Env {
         self.programs.get(command).map(|path| path.clone())
     }
 
-    fn get_current_dir(&self) -> String {
-        env::current_dir()
-            .expect("Failed to get current directory")
+    fn get_current_dir(&self) -> PathBuf {
+        env::current_dir().expect("Failed to get current directory")
+    }
+
+    fn get_current_dir_as_string(&self) -> String {
+        self.get_current_dir()
             .to_str()
             .expect("Failed to parse to string")
             .to_owned()
@@ -89,9 +92,11 @@ impl Env {
             .collect()
     }
 
-    fn try_auto_complete_path(&self, prefix: &str) -> Vec<String> {
+    fn try_auto_complete_path(&self, subdir: &str, prefix: &str) -> Vec<String> {
         let mut candidates = Vec::new();
-        if let Ok(entries) = fs::read_dir(&self.get_current_dir()) {
+        let dir = self.get_current_dir().join(subdir);
+
+        if let Ok(entries) = fs::read_dir(&dir) {
             for entry in entries.flatten() {
                 if let Some(name) = entry.path().file_name()
                     && let Some(name) = name.to_str()
@@ -101,6 +106,7 @@ impl Env {
                 }
             }
         }
+
         candidates
     }
 }
@@ -115,7 +121,7 @@ pub fn get_command(command: &str) -> Option<PathBuf> {
 }
 
 pub fn get_current_dir() -> String {
-    env().get_current_dir()
+    env().get_current_dir_as_string()
 }
 
 pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
@@ -126,6 +132,6 @@ pub fn try_auto_complete_program(prefix: &str) -> Vec<String> {
     env().try_auto_complete_program(prefix)
 }
 
-pub fn try_auto_complete_path(prefix: &str) -> Vec<String> {
-    env().try_auto_complete_path(prefix)
+pub fn try_auto_complete_path(subdir: &str, prefix: &str) -> Vec<String> {
+    env().try_auto_complete_path(subdir, prefix)
 }

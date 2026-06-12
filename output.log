@@ -1,0 +1,85 @@
+2026-06-12T16:43:09.258982Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:43:09.259031Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:43:11.840497Z  INFO blob_shell::env: Trying auto-complete for prefix='src/ma'
+2026-06-12T16:43:11.840534Z  INFO blob_shell::env: dir='src' file_prefix='ma'
+2026-06-12T16:43:11.840541Z  INFO blob_shell::env: Searching in directory "/home/hamza/src/repos/blob-shell/src"
+2026-06-12T16:43:11.840554Z  INFO blob_shell::env: Entry path="/home/hamza/src/repos/blob-shell/src/parser" file_name=Some("parser")
+2026-06-12T16:43:11.840559Z  INFO blob_shell::env: Entry path="/home/hamza/src/repos/blob-shell/src/builtin.rs" file_name=Some("builtin.rs")
+2026-06-12T16:43:11.840563Z  INFO blob_shell::env: Entry path="/home/hamza/src/repos/blob-shell/src/input.rs" file_name=Some("input.rs")
+2026-06-12T16:43:11.840567Z  INFO blob_shell::env: Entry path="/home/hamza/src/repos/blob-shell/src/main.rs" file_name=Some("main.rs")
+2026-06-12T16:43:11.840572Z  INFO blob_shell::env: Entry path="/home/hamza/src/repos/blob-shell/src/env.rs" file_name=Some("env.rs")
+2026-06-12T16:43:11.840576Z  INFO blob_shell::env: Candidates ["main.rs"]
+2026-06-12T16:45:43.743612Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:45:43.743686Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:08.931071Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:08.931149Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:08.931294Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:08.931314Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:08.931342Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:08.931357Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:08.931511Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:08.931548Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:09.440990Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:09.440990Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:09.441058Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:09.441058Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:09.441158Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:09.441193Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:09.442028Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:09.442063Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:11.652609Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:11.652703Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.061978Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.061978Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.062080Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.062080Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.062470Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.062522Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.062835Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.062871Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.874052Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.874143Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.874601Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.874645Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.874734Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.874769Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.874978Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.875016Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.875275Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.875311Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.875895Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.875932Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.876036Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.876075Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.876310Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.876347Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.876794Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.876804Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.876827Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.876838Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.877049Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.877083Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.877498Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.877530Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.877839Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.877871Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:12.878300Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:12.878333Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.484600Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.484675Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.484695Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.484719Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.484799Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.484834Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.485183Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.485222Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.485344Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.485380Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.485780Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.485815Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.486017Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.486052Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:13.486330Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:13.486366Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
+2026-06-12T16:47:16.008983Z TRACE mio::poll: registering event source with poller: token=Token(0), interests=READABLE
+2026-06-12T16:47:16.009034Z TRACE mio::poll: registering event source with poller: token=Token(1), interests=READABLE
