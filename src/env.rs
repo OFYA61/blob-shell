@@ -86,7 +86,7 @@ impl Env {
         env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
     }
 
-    fn try_auto_complete_program(&self, prefix: &str) -> Vec<Candidate> {
+    fn get_auto_complete_program_candidates(&self, prefix: &str) -> Vec<Candidate> {
         self.programs
             .keys()
             .filter(|name| name.starts_with(prefix))
@@ -95,7 +95,7 @@ impl Env {
             .collect()
     }
 
-    fn try_auto_complete_path(&self, subdir: &str, prefix: &str) -> Vec<Candidate> {
+    fn get_auto_complete_dir_candidates(&self, subdir: &str, prefix: &str) -> Vec<Candidate> {
         let mut candidates = Vec::new();
         let dir = self.get_current_dir().join(subdir);
 
@@ -136,10 +136,10 @@ pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
     env().change_dir(new_dir)
 }
 
-pub fn try_auto_complete_program(prefix: &str) -> Vec<Candidate> {
-    env().try_auto_complete_program(prefix)
+pub fn get_auto_complete_program_candidates(prefix: &str) -> Vec<Candidate> {
+    env().get_auto_complete_program_candidates(prefix)
 }
 
-pub fn try_auto_complete_path(subdir: &str, prefix: &str) -> Vec<Candidate> {
-    env().try_auto_complete_path(subdir, prefix)
+pub fn get_auto_complete_dir_candidates(subdir: &str, prefix: &str) -> Vec<Candidate> {
+    env().get_auto_complete_dir_candidates(subdir, prefix)
 }

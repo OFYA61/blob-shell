@@ -20,7 +20,7 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
     })
 }
 
-pub fn try_auto_complete(prefix: &str) -> Vec<Candidate> {
+pub fn get_auto_complete_candidates(prefix: &str) -> Vec<Candidate> {
     map()
         .keys()
         .filter(|key| key.starts_with(prefix))

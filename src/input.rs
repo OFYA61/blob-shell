@@ -121,9 +121,9 @@ pub fn get_input() -> Result<String, io::Error> {
                                 auto_complete_candidates.clear();
                                 if input_split.len() == 1 {
                                     auto_complete_candidates
-                                        .append(&mut builtin::try_auto_complete(i));
+                                        .append(&mut builtin::get_auto_complete_candidates(i));
                                     auto_complete_candidates
-                                        .append(&mut env::try_auto_complete_program(i));
+                                        .append(&mut env::get_auto_complete_program_candidates(i));
                                 } else {
                                     let dir;
                                     let prefix;
@@ -136,8 +136,9 @@ pub fn get_input() -> Result<String, io::Error> {
                                         dir = ".";
                                         prefix = i;
                                     }
-                                    auto_complete_candidates
-                                        .append(&mut env::try_auto_complete_path(dir, prefix));
+                                    auto_complete_candidates.append(
+                                        &mut env::get_auto_complete_dir_candidates(dir, prefix),
+                                    );
                                     chars_to_skip_on_auto_complete = prefix.len();
                                 }
                                 auto_complete_candidates.sort();
