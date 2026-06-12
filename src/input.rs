@@ -126,19 +126,19 @@ pub fn get_input() -> Result<String, io::Error> {
                                         .append(&mut env::try_auto_complete_program(i));
                                 } else {
                                     let dir;
-                                    let file_prefix;
+                                    let prefix;
                                     if i.contains("/") {
-                                        (dir, file_prefix) = i.rsplit_once("/").unwrap();
+                                        (dir, prefix) = i.rsplit_once("/").unwrap();
                                     } else if i.len() == 0 {
                                         dir = ".";
-                                        file_prefix = "";
+                                        prefix = "";
                                     } else {
                                         dir = ".";
-                                        file_prefix = i;
+                                        prefix = i;
                                     }
                                     auto_complete_candidates
-                                        .append(&mut env::try_auto_complete_path(dir, file_prefix));
-                                    chars_to_skip_on_auto_complete = file_prefix.len();
+                                        .append(&mut env::try_auto_complete_path(dir, prefix));
+                                    chars_to_skip_on_auto_complete = prefix.len();
                                 }
                                 auto_complete_candidates.sort();
                                 auto_complete_candidates.dedup();
@@ -181,19 +181,18 @@ pub fn get_input() -> Result<String, io::Error> {
                                         }
                                     }
                                 });
-                                if input == auto_complete_lcp {
+                                if *i == auto_complete_lcp {
                                     ring_bell()?;
                                     next_auto_complete_action =
                                         AutoCompleteAction::DislpayCandidates;
                                     continue;
                                 }
 
-                                let old_input_len = input.len();
+                                let lcp_to_add =
+                                    auto_complete_lcp.chars().skip(i.len()).collect::<String>();
 
-                                input.clear();
-                                input.push_str(auto_complete_lcp);
-
-                                print!("{}", input.chars().skip(old_input_len).collect::<String>());
+                                input.push_str(&lcp_to_add);
+                                print!("{}", lcp_to_add);
                                 io::stdout().flush()?;
                                 next_auto_complete_action = AutoCompleteAction::DislpayCandidates;
                             }
