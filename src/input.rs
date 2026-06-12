@@ -202,10 +202,13 @@ pub fn get_input() -> Result<String, io::Error> {
 
                                 auto_complete_candidates.list.iter().for_each(|candidate| {
                                     print!(
-                                        "{}{} ",
+                                        "{}{}",
                                         candidate.as_str(),
                                         candidate.get_trailing_char()
                                     );
+                                    if candidate.is_directory() {
+                                        print!(" ");
+                                    }
                                 });
                                 println!();
                                 io::stdout().execute(MoveLeft(256))?;

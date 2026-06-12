@@ -71,8 +71,8 @@ fn test_nested_folder_completion() {
 fn test_multiple_file_completion_with_lcp() {
     let dir = create_dir();
     let _ = TestFile::create(&dir, "test1.txt", "Content 1");
-    let _ = TestFile::create(&dir, "test2.txt", "Content 1");
-    let _ = TestFile::create(&dir, "test3.txt", "Content 1");
+    let _ = TestFile::create(&dir, "test2.txt", "Content 2");
+    let _ = TestFile::create(&dir, "test3.txt", "Content 3");
 
     let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
 
@@ -86,12 +86,13 @@ fn test_multiple_file_completion_with_lcp() {
 fn test_multiple_file_completion_without_lcp() {
     let dir = create_dir();
     let _ = TestFile::create(&dir, "test.txt", "Content 1");
-    let _ = TestFile::create(&dir, "file.txt", "Content 1");
+    let _ = TestFile::create(&dir, "file.txt", "Content 2");
+    let _ = TestFile::create(&dir, "dir/file.txt", "Content 3");
 
     let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
 
     shell.send("cat \t");
     shell.exp_string("cat \x07");
     shell.send("\t");
-    shell.exp_string("file.txt test.txt \n\u{1b}[256D$ cat ");
+    shell.exp_string("dir/ file.txt test.txt \n\u{1b}[256D$ cat ");
 }
