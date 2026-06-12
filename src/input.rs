@@ -201,7 +201,11 @@ pub fn get_input() -> Result<String, io::Error> {
                                 io::stdout().execute(MoveLeft(256))?;
 
                                 auto_complete_candidates.list.iter().for_each(|candidate| {
-                                    print!("{}  ", candidate.as_str());
+                                    print!(
+                                        "{}{} ",
+                                        candidate.as_str(),
+                                        candidate.get_trailing_char()
+                                    );
                                 });
                                 println!();
                                 io::stdout().execute(MoveLeft(256))?;

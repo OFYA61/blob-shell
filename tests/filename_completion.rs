@@ -79,7 +79,7 @@ fn test_multiple_file_completion_with_lcp() {
     shell.send("cat \t");
     shell.exp_string("cat test");
     shell.send("\t");
-    shell.exp_string("test1.txt  test2.txt  test3.txt \n\u{1b}[256D$ cat test");
+    shell.exp_string("test1.txt test2.txt test3.txt \n\u{1b}[256D$ cat test");
 }
 
 #[test]
@@ -93,5 +93,5 @@ fn test_multiple_file_completion_without_lcp() {
     shell.send("cat \t");
     shell.exp_string("cat \x07");
     shell.send("\t");
-    shell.exp_string("file.txt  test.txt \n\u{1b}[256D$ cat ");
+    shell.exp_string("file.txt test.txt \n\u{1b}[256D$ cat ");
 }
