@@ -10,7 +10,7 @@ fn test_file_completion() {
 
     let _ = TestFile::create(&dir, "test.txt", "Hello World!");
 
-    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    let mut shell = TestShell::new_with_cd(&dir);
     shell.send("cat tes\t");
     shell.exp_string("cat test.txt");
     shell.send("\r");
@@ -26,7 +26,7 @@ fn test_file_in_subfolder_completion() {
 
     let _ = TestFile::create(&dir, "subfolder/test.txt", "Hello World!");
 
-    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    let mut shell = TestShell::new_with_cd(&dir);
     shell.send("cat subfolder/tes\t");
     shell.exp_string("cat subfolder/test.txt");
     shell.send("\r");
@@ -39,7 +39,7 @@ fn test_folder_completion() {
 
     let _ = TestFile::create(&dir, "subfolder/test.txt", "Hello World!");
 
-    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    let mut shell = TestShell::new_with_cd(&dir);
 
     shell.send("cat subfo\t");
     shell.exp_string("cat subfolder/");
@@ -55,7 +55,7 @@ fn test_nested_folder_completion() {
 
     let _ = TestFile::create(&dir, "folder1/folder2/folder3/test.txt", "Hello World!");
 
-    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    let mut shell = TestShell::new_with_cd(&dir);
 
     shell.send("cat folde\t");
     shell.exp_string("cat folder1/");
@@ -74,7 +74,7 @@ fn test_multiple_file_completion_with_lcp() {
     let _ = TestFile::create(&dir, "test2.txt", "Content 2");
     let _ = TestFile::create(&dir, "test3.txt", "Content 3");
 
-    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    let mut shell = TestShell::new_with_cd(&dir);
 
     shell.send("cat \t");
     shell.exp_string("cat test");
@@ -89,7 +89,7 @@ fn test_multiple_file_completion_without_lcp() {
     let _ = TestFile::create(&dir, "file.txt", "Content 2");
     let _ = TestFile::create(&dir, "dir/file.txt", "Content 3");
 
-    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+    let mut shell = TestShell::new_with_cd(&dir);
 
     shell.send("cat \t");
     shell.exp_string("cat \x07");

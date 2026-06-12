@@ -68,9 +68,9 @@ impl TestShell {
         Self { pty_session }
     }
 
-    pub fn new_with_cd(cd_dir: &str) -> Self {
+    pub fn new_with_cd(dir: &tempfile::TempDir) -> Self {
         let mut shell = Self::new();
-        shell.send(&format!("cd {}\r", cd_dir));
+        shell.send(&format!("cd {}\r", dir.path().to_str().unwrap()));
         shell
     }
 
