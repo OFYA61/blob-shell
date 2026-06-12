@@ -112,7 +112,7 @@ pub fn get_input() -> Result<String, io::Error> {
                 KeyCode::Tab => {
                     let input_split = input.split(" ").collect::<Vec<&str>>();
                     if let Some(i) = input_split.last()
-                        && !i.is_empty()
+                        && (!i.is_empty() || input_split.len() > 1)
                     {
                         match auto_complete_stage {
                             AutoCompleteStage::None
@@ -130,6 +130,9 @@ pub fn get_input() -> Result<String, io::Error> {
                                     let file_prefix;
                                     if i.contains("/") {
                                         (dir, file_prefix) = i.rsplit_once("/").unwrap();
+                                    } else if i.len() == 0 {
+                                        dir = ".";
+                                        file_prefix = "";
                                     } else {
                                         dir = ".";
                                         file_prefix = i;

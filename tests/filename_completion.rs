@@ -15,6 +15,9 @@ fn test_file_completion() {
     shell.exp_string("cat test.txt");
     shell.send("\r");
     shell.exp_string("Hello World!");
+
+    shell.send("cat \t");
+    shell.exp_string("cat test.txt");
 }
 
 #[test]
@@ -39,5 +42,9 @@ fn test_folder_completion() {
     let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
 
     shell.send("cat subfo\t");
+    shell.exp_string("cat subfolder/");
+    shell.send("\r");
+
+    shell.send("cat \t");
     shell.exp_string("cat subfolder/");
 }
