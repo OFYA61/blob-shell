@@ -48,3 +48,21 @@ fn test_folder_completion() {
     shell.send("cat \t");
     shell.exp_string("cat subfolder/");
 }
+
+#[test]
+fn test_nested_folder_completion() {
+    let dir = create_dir();
+
+    let _ = TestFile::create(&dir, "folder1/folder2/folder3/test.txt", "Hello World!");
+
+    let mut shell = TestShell::new_with_cd(&dir.path().to_str().unwrap());
+
+    shell.send("cat folde\t");
+    shell.exp_string("cat folder1/");
+    shell.send("\t");
+    shell.exp_string("folder2/");
+    shell.send("\t");
+    shell.exp_string("folder3/");
+    shell.send("\t");
+    shell.exp_string("test.txt");
+}

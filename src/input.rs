@@ -116,7 +116,8 @@ pub fn get_input() -> Result<String, io::Error> {
                     {
                         match auto_complete_stage {
                             AutoCompleteStage::None
-                            | AutoCompleteStage::FilledLongestCommonPrefix => {
+                            | AutoCompleteStage::FilledLongestCommonPrefix
+                            | AutoCompleteStage::CompletedOnlyCandidate => {
                                 let mut chars_to_skip_on_auto_complete = i.len();
 
                                 auto_complete_candidates.clear();
@@ -206,7 +207,6 @@ pub fn get_input() -> Result<String, io::Error> {
                                 print!("$ {}", input);
                                 io::stdout().flush()?;
                             }
-                            AutoCompleteStage::CompletedOnlyCandidate => {}
                         };
                     }
                 }
