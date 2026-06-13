@@ -42,7 +42,7 @@ fn test_multiple_executable_completion() {
 
     let mut shell = TestShell::new_with_extra_path(&dir);
     shell.send("xyz\t\t");
-    shell.exp_string("xyz\x07\n\u{1b}[256Dxyz xyz_abc xyz_abc_def \n\u{1b}[256D$ xyz");
+    shell.exp_string("xyz\x07\n\u{1b}[1Gxyz xyz_abc xyz_abc_def \n\u{1b}[1G$ xyz");
     shell.send("_\t");
     shell.exp_string("abc");
     shell.send("_\t");

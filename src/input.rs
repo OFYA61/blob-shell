@@ -3,6 +3,7 @@ use std::io::Write;
 
 use crossterm::ExecutableCommand;
 use crossterm::cursor::MoveLeft;
+use crossterm::cursor::MoveToColumn;
 use crossterm::event;
 use crossterm::event::Event;
 use crossterm::event::KeyCode;
@@ -65,7 +66,7 @@ impl Candidates {
 
 pub fn get_input() -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
-    io::stdout().execute(MoveLeft(256))?;
+    io::stdout().execute(MoveToColumn(0))?;
     print!("$ ");
     std::io::stdout().flush()?;
 
@@ -199,7 +200,7 @@ pub fn get_input() -> Result<String, io::Error> {
                             }
                             AutoCompleteAction::DislpayCandidates => {
                                 println!();
-                                io::stdout().execute(MoveLeft(256))?;
+                                io::stdout().execute(MoveToColumn(0))?;
 
                                 auto_complete_candidates.list.iter().for_each(|candidate| {
                                     print!(
@@ -212,7 +213,7 @@ pub fn get_input() -> Result<String, io::Error> {
                                     }
                                 });
                                 println!();
-                                io::stdout().execute(MoveLeft(256))?;
+                                io::stdout().execute(MoveToColumn(0))?;
 
                                 print!("$ {}", input);
                                 io::stdout().flush()?;
@@ -225,7 +226,7 @@ pub fn get_input() -> Result<String, io::Error> {
         }
     }
 
-    io::stdout().execute(MoveLeft(256))?;
+    io::stdout().execute(MoveToColumn(0))?;
 
     disable_raw_mode()?;
 
