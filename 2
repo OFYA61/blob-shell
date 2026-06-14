@@ -14,12 +14,12 @@ pub enum ChangeDirError {
     DoesNotExist,
 }
 
-#[derive(Debug, Clone)]
-pub struct Completer {
-    pub path: PathBuf,
+#[derive(Debug)]
+struct Completion {
+    path: PathBuf,
 }
 
-impl Completer {
+impl Completion {
     fn new(path: PathBuf) -> Self {
         Self { path }
     }
@@ -31,7 +31,7 @@ struct Env {
     #[allow(dead_code)]
     paths: Vec<PathBuf>,
     programs: HashMap<String, PathBuf>,
-    completers: HashMap<String, Completer>,
+    completions: HashMap<String, Completion>,
 }
 
 impl Env {
@@ -43,7 +43,7 @@ impl Env {
                 home,
                 paths: vec![],
                 programs: HashMap::new(),
-                completers: HashMap::new(),
+                completions: HashMap::new(),
             };
         }
         let path_var = unsafe { path_var.unwrap_unchecked() };
@@ -70,7 +70,7 @@ impl Env {
             home,
             paths,
             programs,
-            completers: HashMap::new(),
+            completions: HashMap::new(),
         }
     }
 
@@ -132,12 +132,8 @@ impl Env {
         candidates
     }
 
-    fn add_completer(&mut self, program: String, path: PathBuf) {
-        self.completers.insert(program, Completer::new(path));
-    }
-
-    fn get_completer(&self, program: &str) -> Option<Completer> {
-        self.completers.get(program).cloned()
+    fn add_completion(&mut self, program: String, path: PathBuf) {
+        self.completions.insert(program, path);
     }
 }
 
@@ -166,10 +162,6 @@ pub fn get_auto_complete_dir_candidates(subdir: &str, prefix: &str) -> Vec<Candi
     env().get_auto_complete_dir_candidates(subdir, prefix)
 }
 
-pub fn add_completer(program: String, path: PathBuf) {
-    env().add_completer(program, path);
-}
-
-pub fn get_completer(program: &str) -> Option<Completer> {
-    env().get_completer(program)
+pub fn add_completion(program: String, path: PathBuf) {
+    env().add_completion(program, path);
 }

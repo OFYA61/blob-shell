@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use clap::Parser;
@@ -50,9 +51,25 @@ impl Builtin {
 }
 
 #[derive(Parser, Debug)]
+#[command(group(
+    clap::ArgGroup::new("mode")
+        .required(true)
+        .args(["program", "completion"]),
+))]
 struct CompleteArgs {
     #[arg(short, long)]
-    program: String,
+    program: Option<String>,
+
+    #[arg(short = 'C', long, requires = "extra")]
+    completion: Option<PathBuf>,
+
+    #[arg(
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        num_args = 1,
+        requires = "completion"
+    )]
+    extra: Vec<String>,
 }
 
 /// Try proecssing a bultin command. If none are found, returns `false`.
@@ -141,11 +158,18 @@ pub fn try_process(
                 std::iter::once("complete").chain(args.into_iter().map(|arg| *arg)),
             ) {
                 Ok(args) => {
-                    println!("complete: {}: no completion specification", args.program);
+                    if let Some(new_completion) = args.completion {
+                        env::add_completer(args.extra.first().unwrap().clone(), new_completion);
+                    } else if let Some(program) = args.program {
+                        if let Some(completion) = env::get_completer(&program) {
+                            println!("complete -C '{}' {}", completion.path.display(), program);
+                        } else {
+                            println!("complete: {}: no completion specification", program);
+                        }
+                    }
                 }
                 Err(err) => {
-                    // TODO: better error message printing for wrong argumnets
-                    println!("{:?}", err);
+                    println!("{}", err);
                 }
             }
         }
