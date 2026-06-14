@@ -43,6 +43,11 @@ fn test_type_builtin() {
     shell.send("\r");
     shell.exp_string("exit is a shell builtin");
 
+    shell.send("type complete");
+    shell.exp_string("type complete");
+    shell.send("\r");
+    shell.exp_string("complete is a shell builtin");
+
     shell.send("type type");
     shell.exp_string("type type");
     shell.send("\r");

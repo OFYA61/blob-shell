@@ -15,6 +15,7 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
         m.insert("exit", Builtin::Exit);
         m.insert("cd", Builtin::Cd);
         m.insert("pwd", Builtin::Pwd);
+        m.insert("complete", Builtin::Complete);
         m.insert("type", Builtin::Type);
         m
     })
@@ -36,6 +37,7 @@ enum Builtin {
     Cd,
     Pwd,
 
+    Complete,
     Type,
 }
 
@@ -124,6 +126,10 @@ pub fn try_process(
         Builtin::Pwd => {
             expect_no_argument!();
             write_stdout!("{}", env::get_current_dir());
+        }
+
+        Builtin::Complete => {
+            todo!()
         }
 
         Builtin::Type => {
