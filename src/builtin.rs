@@ -3,6 +3,8 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::OnceLock;
 
+use clap::Parser;
+
 use crate::autocomplete::Candidate;
 use crate::env;
 use crate::env::ChangeDirError;
@@ -45,6 +47,12 @@ impl Builtin {
     fn from_str(s: &str) -> Option<Self> {
         map().get(s).map(|b| b.clone())
     }
+}
+
+#[derive(Parser, Debug)]
+struct CompleteArgs {
+    #[arg(short, long)]
+    program: String,
 }
 
 /// Try proecssing a bultin command. If none are found, returns `false`.
@@ -129,7 +137,17 @@ pub fn try_process(
         }
 
         Builtin::Complete => {
-            todo!()
+            match CompleteArgs::try_parse_from(
+                std::iter::once("complete").chain(args.into_iter().map(|arg| *arg)),
+            ) {
+                Ok(args) => {
+                    println!("complete: {}: no completion specification", args.program);
+                }
+                Err(err) => {
+                    // TODO: better error message printing for wrong argumnets
+                    println!("{:?}", err);
+                }
+            }
         }
 
         Builtin::Type => {
