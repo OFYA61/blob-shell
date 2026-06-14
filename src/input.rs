@@ -134,7 +134,8 @@ pub fn get_input() -> Result<String, io::Error> {
                                             i,
                                             input_split.iter().nth_back(1).unwrap(),
                                         ];
-                                        if let Ok(completer_output) = completer.run(completer_args)
+                                        if let Ok(completer_output) =
+                                            completer.run(completer_args, &input)
                                         {
                                             auto_complete_candidates.append(
                                                 &mut completer_output
