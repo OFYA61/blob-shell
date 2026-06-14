@@ -54,7 +54,7 @@ impl Builtin {
 #[command(group(
     clap::ArgGroup::new("mode")
         .required(true)
-        .args(["program", "completion"]),
+        .args(["program", "completion", "remove"]),
 ))]
 struct CompleteArgs {
     #[arg(short, long)]
@@ -62,6 +62,9 @@ struct CompleteArgs {
 
     #[arg(short = 'C', long, requires = "extra")]
     completion: Option<PathBuf>,
+
+    #[arg(short, long)]
+    remove: Option<String>,
 
     #[arg(
         trailing_var_arg = true,
@@ -166,6 +169,8 @@ pub fn try_process(
                         } else {
                             println!("complete: {}: no completion specification", program);
                         }
+                    } else if let Some(remove) = args.remove {
+                        env::remove_completer(&remove);
                     }
                 }
                 Err(err) => {

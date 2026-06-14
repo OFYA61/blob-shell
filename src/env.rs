@@ -151,6 +151,10 @@ impl Env {
     fn get_completer(&self, program: &str) -> Option<Completer> {
         self.completers.get(program).cloned()
     }
+
+    fn remove_completer(&mut self, program: &str) {
+        let _ = self.completers.remove(program);
+    }
 }
 
 fn env() -> MutexGuard<'static, Env> {
@@ -184,4 +188,8 @@ pub fn add_completer(program: String, path: PathBuf) {
 
 pub fn get_completer(program: &str) -> Option<Completer> {
     env().get_completer(program)
+}
+
+pub fn remove_completer(program: &str) {
+    env().remove_completer(program);
 }
