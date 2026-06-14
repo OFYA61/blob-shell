@@ -26,8 +26,8 @@ impl Completer {
         Self { path }
     }
 
-    pub fn run(&self) -> io::Result<String> {
-        let output = Command::new(&self.path).output()?;
+    pub fn run(&self, args: Vec<&str>) -> io::Result<String> {
+        let output = Command::new(&self.path).args(args).output()?;
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 }

@@ -126,32 +126,44 @@ pub fn get_input() -> Result<String, io::Error> {
                                         .append(&mut builtin::get_auto_complete_candidates(i));
                                     auto_complete_candidates
                                         .append(&mut env::get_auto_complete_program_candidates(i));
-                                } else if let Some(completer) = env::get_completer(program)
-                                    && let Ok(completer_output) = completer.run()
-                                {
-                                    auto_complete_candidates.append(
-                                        &mut completer_output
-                                            .split("\n")
-                                            .filter(|s| !s.is_empty())
-                                            .map(|s| Candidate::ProgramArg(s.to_owned()))
-                                            .collect(),
-                                    );
                                 } else {
-                                    let dir;
-                                    let prefix;
-                                    if i.contains("/") {
-                                        (dir, prefix) = i.rsplit_once("/").unwrap();
-                                    } else if i.len() == 0 {
-                                        dir = ".";
-                                        prefix = "";
-                                    } else {
-                                        dir = ".";
-                                        prefix = i;
+                                    let mut ran_completer = false;
+                                    if let Some(completer) = env::get_completer(program) {
+                                        let completer_args = vec![
+                                            program,
+                                            i,
+                                            input_split.iter().nth_back(1).unwrap(),
+                                        ];
+                                        if let Ok(completer_output) = completer.run(completer_args)
+                                        {
+                                            auto_complete_candidates.append(
+                                                &mut completer_output
+                                                    .split("\n")
+                                                    .filter(|s| !s.is_empty())
+                                                    .map(|s| Candidate::ProgramArg(s.to_owned()))
+                                                    .collect(),
+                                            );
+                                            ran_completer = true;
+                                        }
                                     }
-                                    auto_complete_candidates.append(
-                                        &mut env::get_auto_complete_dir_candidates(dir, prefix),
-                                    );
-                                    chars_to_skip_on_auto_complete = prefix.len();
+
+                                    if !ran_completer {
+                                        let dir;
+                                        let prefix;
+                                        if i.contains("/") {
+                                            (dir, prefix) = i.rsplit_once("/").unwrap();
+                                        } else if i.len() == 0 {
+                                            dir = ".";
+                                            prefix = "";
+                                        } else {
+                                            dir = ".";
+                                            prefix = i;
+                                        }
+                                        auto_complete_candidates.append(
+                                            &mut env::get_auto_complete_dir_candidates(dir, prefix),
+                                        );
+                                        chars_to_skip_on_auto_complete = prefix.len();
+                                    }
                                 }
                                 auto_complete_candidates.sort();
                                 auto_complete_candidates.dedup();
