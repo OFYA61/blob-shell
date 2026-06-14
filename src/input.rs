@@ -111,7 +111,8 @@ pub fn get_input() -> Result<String, io::Error> {
                 }
                 KeyCode::Tab => {
                     let input_split = input.split(" ").collect::<Vec<&str>>();
-                    if let Some(i) = input_split.last()
+                    if let Some(i) = input_split.last().map(|i| *i)
+                        && let Some(program) = input_split.first().map(|i| *i)
                         && (!i.is_empty() || input_split.len() > 1)
                     {
                         match next_auto_complete_action {
@@ -125,6 +126,16 @@ pub fn get_input() -> Result<String, io::Error> {
                                         .append(&mut builtin::get_auto_complete_candidates(i));
                                     auto_complete_candidates
                                         .append(&mut env::get_auto_complete_program_candidates(i));
+                                } else if let Some(completer) = env::get_completer(program)
+                                    && let Ok(completer_output) = completer.run()
+                                {
+                                    auto_complete_candidates.append(
+                                        &mut completer_output
+                                            .split("\n")
+                                            .filter(|s| !s.is_empty())
+                                            .map(|s| Candidate::ProgramArg(s.to_owned()))
+                                            .collect(),
+                                    );
                                 } else {
                                     let dir;
                                     let prefix;
@@ -183,7 +194,7 @@ pub fn get_input() -> Result<String, io::Error> {
                                         }
                                     }
                                 });
-                                if *i == auto_complete_lcp {
+                                if i == auto_complete_lcp {
                                     ring_bell()?;
                                     next_auto_complete_action =
                                         AutoCompleteAction::DislpayCandidates;

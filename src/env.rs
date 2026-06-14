@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
@@ -22,6 +24,11 @@ pub struct Completer {
 impl Completer {
     fn new(path: PathBuf) -> Self {
         Self { path }
+    }
+
+    pub fn run(&self) -> io::Result<String> {
+        let output = Command::new(&self.path).output()?;
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 }
 

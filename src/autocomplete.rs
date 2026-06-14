@@ -4,6 +4,7 @@ use std::str::Chars;
 pub enum Candidate {
     Builtin(String),
     Program(String),
+    ProgramArg(String),
     File(String),
     Directory(String),
 }
@@ -13,6 +14,7 @@ impl Candidate {
         match self {
             Candidate::Builtin(s)
             | Candidate::Program(s)
+            | Candidate::ProgramArg(s)
             | Candidate::File(s)
             | Candidate::Directory(s) => s,
         }
@@ -20,7 +22,10 @@ impl Candidate {
 
     pub fn get_trailing_char(&self) -> char {
         match self {
-            Candidate::Builtin(_) | Candidate::Program(_) | Candidate::File(_) => ' ',
+            Candidate::Builtin(_)
+            | Candidate::Program(_)
+            | Candidate::ProgramArg(_)
+            | Candidate::File(_) => ' ',
             Candidate::Directory(_) => '/',
         }
     }
