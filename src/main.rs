@@ -97,7 +97,12 @@ async fn main() {
 
                             if let Some(stderr) = child.stderr.take() {
                                 let mut reader = BufReader::new(stderr).lines();
+                                let has_files = !stderr_files.is_empty();
                                 while let Ok(Some(line)) = reader.next_line().await {
+                                    if !has_files {
+                                        eprintln!("{}", line);
+                                        continue;
+                                    }
                                     let bytes = format!("{}\n", line).as_bytes().to_vec();
                                     for file in &mut stderr_files {
                                         file.write_all(&bytes)
