@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use tokio::fs::File;
 
 use clap::Parser;
+use tokio::io::AsyncWriteExt;
 
 use crate::autocomplete::Candidate;
 use crate::env;
@@ -79,20 +79,21 @@ struct CompleteArgs {
 
 /// Try proecssing a bultin command. If none are found, returns `false`.
 /// If it is a bultin command returns `true`, even if wrong argument types get passed
-pub fn try_process(
+pub async fn try_process(
     exec: &str,
     args: &Vec<&str>,
-    stdout_files: &Vec<File>,
-    stderr_files: &Vec<File>,
+    stdout_files: &mut Vec<File>,
+    stderr_files: &mut Vec<File>,
 ) -> bool {
     macro_rules! write_stdout {
         ($($arg:tt)*) => {
             if stdout_files.is_empty() {
                 println!($($arg)*);
             } else {
-                stdout_files.iter().for_each(|mut file| {
-                    writeln!(&mut file, $($arg)*).expect("Failed to write to file");
-                });
+                for file in stdout_files {
+                    let _ = file.write_all(&format!($($arg)*).as_bytes()).await;
+                    file.flush().await.expect("Failed to flush file");
+                }
             }
         };
     }
@@ -102,9 +103,10 @@ pub fn try_process(
             if stderr_files.is_empty() {
                 eprintln!($($arg)*);
             } else {
-                stderr_files.iter().for_each(|mut file| {
-                    writeln!(&mut file, $($arg)*).expect("Failed to write to file");
-                });
+                for file in stderr_files {
+                    let _ = file.write_all(&format!($($arg)*).as_bytes()).await;
+                    file.flush().await.expect("Failed to flush file");
+                }
             }
         };
     }

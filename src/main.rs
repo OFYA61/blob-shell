@@ -4,16 +4,16 @@ mod env;
 mod input;
 mod parser;
 
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Write;
 use std::process::Stdio;
-use std::thread;
 
 use crossterm::terminal::disable_raw_mode;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::io::BufReader;
+use tokio::process::Command;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut job_counter = 1;
 
     loop {
@@ -47,81 +47,79 @@ fn main() {
                 } => {
                     let exec = exec.process();
                     let args = args.iter().map(|arg| arg.process()).collect::<Vec<&str>>();
-                    let mut stdout_files = redirects
-                        .iter()
-                        .filter(|r| r.is_stdout())
-                        .map(|r| r.open_file())
-                        .collect::<Vec<File>>();
-                    let mut stderr_files = redirects
-                        .iter()
-                        .filter(|r| r.is_stderr())
-                        .map(|r| r.open_file())
-                        .collect::<Vec<File>>();
+                    let mut stdout_files = Vec::new();
+                    let mut stderr_files = Vec::new();
+                    for redirect in redirects {
+                        let file = redirect.open_file().await;
+                        if redirect.is_stdout() {
+                            stdout_files.push(file);
+                        } else if redirect.is_stderr() {
+                            stderr_files.push(file);
+                        } else {
+                            unreachable!();
+                        }
+                    }
 
-                    if builtin::try_process(exec, &args, &mut stdout_files, &mut stderr_files) {
+                    if builtin::try_process(exec, &args, &mut stdout_files, &mut stderr_files).await
+                    {
                         continue;
                     }
 
                     if let Some(_) = env::get_command(&exec) {
-                        let mut child = std::process::Command::new(&exec);
+                        let mut child = Command::new(&exec);
                         if args.len() > 0 {
                             child.args(args);
                         }
-
-                        if !stdout_files.is_empty() {
-                            child.stdout(Stdio::piped());
-                        }
-                        if !stderr_files.is_empty() {
-                            child.stderr(Stdio::piped());
-                        }
+                        child.stdout(Stdio::piped());
+                        child.stderr(Stdio::piped());
 
                         let mut child = child.spawn().expect("Failed to execute process");
+                        let pid = child.id().unwrap_or(0);
 
-                        let stdout_handle = child.stdout.take().map(|stdout| {
-                            thread::spawn(move || {
-                                let reader = BufReader::new(stdout);
-                                for line_result in reader.lines() {
-                                    if line_result.is_err() {
+                        let child_process_handler = async move {
+                            if let Some(stdout) = child.stdout.take() {
+                                let mut reader = BufReader::new(stdout).lines();
+                                let has_files = !stdout_files.is_empty();
+                                while let Ok(Some(line)) = reader.next_line().await {
+                                    if !has_files {
+                                        println!("{}", line);
                                         continue;
                                     }
-                                    let line = line_result.unwrap();
                                     let bytes = format!("{}\n", line).as_bytes().to_vec();
                                     for file in &mut stdout_files {
-                                        file.write_all(&bytes).expect("Failed to write to file");
-                                        file.flush().expect("Failed to flush file");
+                                        file.write_all(&bytes)
+                                            .await
+                                            .expect("Failed to write to file");
+                                        file.flush().await.expect("Failed to flush file");
                                     }
                                 }
-                            })
-                        });
+                            }
 
-                        let stderr_handle = child.stderr.take().map(|stderr| {
-                            thread::spawn(move || {
-                                let reader = BufReader::new(stderr);
-                                for line_result in reader.lines() {
-                                    if line_result.is_err() {
-                                        continue;
-                                    }
-                                    let line = line_result.unwrap();
+                            if let Some(stderr) = child.stderr.take() {
+                                let mut reader = BufReader::new(stderr).lines();
+                                while let Ok(Some(line)) = reader.next_line().await {
                                     let bytes = format!("{}\n", line).as_bytes().to_vec();
                                     for file in &mut stderr_files {
-                                        file.write_all(&bytes).expect("Failed to write to file");
-                                        file.flush().expect("Failed to flush file");
+                                        file.write_all(&bytes)
+                                            .await
+                                            .expect("Failed to write to file");
+                                        file.flush().await.expect("Failed to flush file");
                                     }
                                 }
-                            })
-                        });
+                            }
 
-                        if !is_background {
-                            child.wait().expect("Failed to wait on command");
-                            if let Some(h) = stdout_handle {
-                                h.join().expect("Stdout thread paniced")
-                            };
-                            if let Some(h) = stderr_handle {
-                                h.join().expect("Stderr thread paniced")
-                            };
-                        } else {
-                            println!("[{}] {}", job_counter, child.id());
+                            child
+                                .wait_with_output()
+                                .await
+                                .expect("Failed to wait for child with output")
+                        };
+
+                        if is_background {
+                            println!("[{}] {}", job_counter, pid);
                             job_counter += 1;
+                            tokio::spawn(child_process_handler);
+                        } else {
+                            let _ = child_process_handler.await;
                         }
 
                         continue;

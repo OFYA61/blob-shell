@@ -1,8 +1,9 @@
 mod tokenizer;
 
-use std::fs::File;
-use std::fs::OpenOptions;
 use std::path::Path;
+
+use tokio::fs::File;
+use tokio::fs::OpenOptions;
 
 use self::tokenizer::Token;
 use self::tokenizer::TokenKind;
@@ -99,7 +100,7 @@ impl ExprRedirect {
         }
     }
 
-    pub fn open_file(&self) -> File {
+    pub async fn open_file(&self) -> File {
         // TODO: print out error message instead of panicing when file cannot be opened
         let path = Path::new(self.arg.process());
         if self.is_append() {
@@ -107,9 +108,10 @@ impl ExprRedirect {
                 .create(true)
                 .append(true)
                 .open(path)
+                .await
                 .expect("Failed to open file in append mode")
         } else {
-            File::create(path).expect("Failed to open file")
+            File::create(path).await.expect("Failed to open file")
         }
     }
 }
