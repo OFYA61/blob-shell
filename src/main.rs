@@ -14,6 +14,8 @@ use std::thread;
 use crossterm::terminal::disable_raw_mode;
 
 fn main() {
+    let mut job_counter = 1;
+
     loop {
         let command_raw = match input::get_input() {
             Ok(input) => input,
@@ -41,6 +43,7 @@ fn main() {
                     exec,
                     args,
                     redirects,
+                    is_background,
                 } => {
                     let exec = exec.process();
                     let args = args.iter().map(|arg| arg.process()).collect::<Vec<&str>>();
@@ -108,14 +111,19 @@ fn main() {
                             })
                         });
 
-                        child.wait().expect("Failed to wait on command");
+                        if !is_background {
+                            child.wait().expect("Failed to wait on command");
+                            if let Some(h) = stdout_handle {
+                                h.join().expect("Stdout thread paniced")
+                            };
+                            if let Some(h) = stderr_handle {
+                                h.join().expect("Stderr thread paniced")
+                            };
+                        } else {
+                            println!("[{}] {}", job_counter, child.id());
+                            job_counter += 1;
+                        }
 
-                        if let Some(h) = stdout_handle {
-                            h.join().expect("Stdout thread paniced")
-                        };
-                        if let Some(h) = stderr_handle {
-                            h.join().expect("Stderr thread paniced")
-                        };
                         continue;
                     }
 

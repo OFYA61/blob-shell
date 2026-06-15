@@ -18,6 +18,7 @@ pub enum Expr {
         exec: ExprArg,
         args: Vec<ExprArg>,
         redirects: Vec<ExprRedirect>,
+        is_background: bool,
     },
 }
 
@@ -117,7 +118,7 @@ impl ExprRedirect {
 ///
 /// Parsing rules
 /// ```ignore
-/// command  -> expr_arg+ expr_redirect* EOF
+/// command  -> expr_arg+ expr_redirect* AMPERSANT? EOF
 /// expr_arg -> WORD | LITERAL_STRING | FORMAT_STRING
 /// expr_redirect -> (REDIRECT_STDOUT | REDIRECT_STDERR) expr_arg
 /// ```
@@ -167,11 +168,20 @@ impl Parser {
             redirects.push(self.expr_redirect()?);
         }
 
+        let is_background;
+        if self.match_exact(TokenKind::Ampersant)? {
+            self.consume(TokenKind::Ampersant)?;
+            is_background = true;
+        } else {
+            is_background = false;
+        }
+
         self.consume(TokenKind::EOF)?;
         Ok(Expr::Command {
             exec,
             args,
             redirects,
+            is_background,
         })
     }
 
@@ -207,6 +217,14 @@ impl Parser {
             return Ok(token);
         }
         Err(ParserError::EOF)
+    }
+
+    fn match_exact(&mut self, token_kind: TokenKind) -> Result<bool, ParserError> {
+        let token = self.peek_token()?;
+        if token.kind != token_kind {
+            return Ok(false);
+        }
+        Ok(true)
     }
 
     fn match_any(&mut self, token_kinds: Vec<TokenKind>) -> Result<bool, ParserError> {

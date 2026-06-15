@@ -12,6 +12,8 @@ pub enum TokenKind {
     RedirectStderr,
     RedirectStderrAppend,
 
+    Ampersant,
+
     EOF,
 }
 
@@ -20,6 +22,14 @@ impl TokenKind {
     fn can_concat(&self) -> bool {
         match self {
             TokenKind::LiteralString | TokenKind::FormatString => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    fn blocks_concat(&self) -> bool {
+        match self {
+            TokenKind::Ampersant => true,
             _ => false,
         }
     }
@@ -56,10 +66,9 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
     let mut token_start: usize = 0;
     let mut index = 0;
     let mut lexeme = String::new();
-    while index < command_raw.len() {
-        let c = get_char!(index);
 
-        if c.is_whitespace() {
+    macro_rules! push_lexeme_as_token {
+        () => {
             if !lexeme.is_empty() {
                 let token_kind = match lexeme.as_str() {
                     ">" | "1>" => TokenKind::RedirectStdout,
@@ -77,6 +86,24 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
             }
             token_start = index + 1;
             lexeme.clear();
+        };
+    }
+
+    while index < command_raw.len() {
+        let c = get_char!(index);
+
+        if c == '&' {
+            // Treat this as end of command, push the current lexeme to the list of tokens followed
+            // up by an ampersant token
+            push_lexeme_as_token!();
+            tokens.push(Token::new(
+                "&".to_owned(),
+                index,
+                index,
+                TokenKind::Ampersant,
+            ));
+        } else if c.is_whitespace() {
+            push_lexeme_as_token!();
         } else if c == '\\' {
             index += 1;
             if let Some(c) = command_raw.chars().nth(index) {
@@ -148,12 +175,14 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
         index += 1;
     }
 
-    tokens.push(Token::new(
-        lexeme.clone(),
-        token_start,
-        command_raw.len() - 1,
-        TokenKind::Word,
-    ));
+    if !lexeme.is_empty() {
+        tokens.push(Token::new(
+            lexeme.clone(),
+            token_start,
+            command_raw.len() - 1,
+            TokenKind::Word,
+        ));
+    }
 
     join_concatenated_strings(&mut tokens);
 
@@ -175,6 +204,8 @@ fn join_concatenated_strings(tokens: &mut Vec<Token>) {
 
         if let Some(prev_token) = tokens.get(i - 1)
             && (prev_token.kind.can_concat() || token.kind.can_concat())
+            && !prev_token.kind.blocks_concat()
+            && !token.kind.blocks_concat()
             && prev_token.end + 1 == token.start
         {
             let kind = if prev_token.kind == TokenKind::FormatString
