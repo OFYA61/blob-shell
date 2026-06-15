@@ -19,6 +19,7 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
         m.insert("cd", Builtin::Cd);
         m.insert("pwd", Builtin::Pwd);
         m.insert("complete", Builtin::Complete);
+        m.insert("jobs", Builtin::Jobs);
         m.insert("type", Builtin::Type);
         m
     })
@@ -41,6 +42,7 @@ enum Builtin {
     Pwd,
 
     Complete,
+    Jobs,
     Type,
 }
 
@@ -178,6 +180,8 @@ pub fn try_process(
                 }
             }
         }
+
+        Builtin::Jobs => {}
 
         Builtin::Type => {
             let cmd = expect_single_argument!();
