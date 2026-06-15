@@ -70,8 +70,13 @@ async fn main() {
                         if args.len() > 0 {
                             child.args(args);
                         }
-                        child.stdout(Stdio::piped());
-                        child.stderr(Stdio::piped());
+
+                        if !stdout_files.is_empty() {
+                            child.stdout(Stdio::piped());
+                        }
+                        if !stderr_files.is_empty() {
+                            child.stderr(Stdio::piped());
+                        }
 
                         let mut child = child.spawn().expect("Failed to execute process");
                         let pid = child.id().unwrap_or(0);
@@ -79,12 +84,7 @@ async fn main() {
                         let child_process_handler = async move {
                             if let Some(stdout) = child.stdout.take() {
                                 let mut reader = BufReader::new(stdout).lines();
-                                let has_files = !stdout_files.is_empty();
                                 while let Ok(Some(line)) = reader.next_line().await {
-                                    if !has_files {
-                                        println!("{}", line);
-                                        continue;
-                                    }
                                     let bytes = format!("{}\n", line).as_bytes().to_vec();
                                     for file in &mut stdout_files {
                                         file.write_all(&bytes)
@@ -97,12 +97,7 @@ async fn main() {
 
                             if let Some(stderr) = child.stderr.take() {
                                 let mut reader = BufReader::new(stderr).lines();
-                                let has_files = !stderr_files.is_empty();
                                 while let Ok(Some(line)) = reader.next_line().await {
-                                    if !has_files {
-                                        eprintln!("{}", line);
-                                        continue;
-                                    }
                                     let bytes = format!("{}\n", line).as_bytes().to_vec();
                                     for file in &mut stderr_files {
                                         file.write_all(&bytes)

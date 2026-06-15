@@ -92,6 +92,7 @@ pub async fn try_process(
             } else {
                 for file in stdout_files {
                     let _ = file.write_all(&format!($($arg)*).as_bytes()).await;
+                    let _ = file.write("\n".as_bytes()).await;
                     file.flush().await.expect("Failed to flush file");
                 }
             }
@@ -105,6 +106,7 @@ pub async fn try_process(
             } else {
                 for file in stderr_files {
                     let _ = file.write_all(&format!($($arg)*).as_bytes()).await;
+                    let _ = file.write("\n".as_bytes()).await;
                     file.flush().await.expect("Failed to flush file");
                 }
             }
