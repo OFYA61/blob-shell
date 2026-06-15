@@ -3,7 +3,7 @@ mod common;
 use self::common::TestShell;
 
 #[test]
-fn test_backslash_outside_quotes() {
+fn backslash_outside_quotes() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo hello\ \ \ \ \ \ example"#);
@@ -18,7 +18,7 @@ fn test_backslash_outside_quotes() {
 }
 
 #[test]
-fn test_double_quotes() {
+fn double_quotes() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo "script example""#);
@@ -33,7 +33,7 @@ fn test_double_quotes() {
 }
 
 #[test]
-fn test_double_quotes_concatenation_on_left() {
+fn double_quotes_concatenation_on_left() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo "hello"world"#);
@@ -43,7 +43,7 @@ fn test_double_quotes_concatenation_on_left() {
 }
 
 #[test]
-fn test_double_quotes_concatenation_on_right() {
+fn double_quotes_concatenation_on_right() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo hello"world""#);
@@ -53,7 +53,7 @@ fn test_double_quotes_concatenation_on_right() {
 }
 
 #[test]
-fn test_double_quotes_concatenation_on_left_and_right() {
+fn double_quotes_concatenation_on_left_and_right() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo "hello""world""#);
@@ -63,7 +63,7 @@ fn test_double_quotes_concatenation_on_left_and_right() {
 }
 
 #[test]
-fn test_double_quotes_concatenation_on_center() {
+fn double_quotes_concatenation_on_center() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo hello"world"hello"#);
@@ -73,7 +73,7 @@ fn test_double_quotes_concatenation_on_center() {
 }
 
 #[test]
-fn test_backslash_inside_double_quotes() {
+fn backslash_inside_double_quotes() {
     let mut shell = TestShell::new();
 
     shell.send(r##"echo "just'one'\\n'backslash""##);
@@ -88,7 +88,7 @@ fn test_backslash_inside_double_quotes() {
 }
 
 #[test]
-fn test_single_quotes() {
+fn single_quotes() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo 'hello example'"#);
@@ -103,7 +103,7 @@ fn test_single_quotes() {
 }
 
 #[test]
-fn test_single_quotes_concatenation_on_left() {
+fn single_quotes_concatenation_on_left() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo 'hello'world"#);
@@ -113,7 +113,7 @@ fn test_single_quotes_concatenation_on_left() {
 }
 
 #[test]
-fn test_single_quotes_concatenation_on_right() {
+fn single_quotes_concatenation_on_right() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo hello'world'"#);
@@ -123,7 +123,7 @@ fn test_single_quotes_concatenation_on_right() {
 }
 
 #[test]
-fn test_single_quotes_concatenation_on_left_and_right() {
+fn single_quotes_concatenation_on_left_and_right() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo 'hello''world'"#);
@@ -133,7 +133,7 @@ fn test_single_quotes_concatenation_on_left_and_right() {
 }
 
 #[test]
-fn test_single_quotes_concatenation_on_center() {
+fn single_quotes_concatenation_on_center() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo hello'world'hello"#);
@@ -143,7 +143,7 @@ fn test_single_quotes_concatenation_on_center() {
 }
 
 #[test]
-fn test_backslash_inside_single_quotes() {
+fn backslash_inside_single_quotes() {
     let mut shell = TestShell::new();
 
     shell.send(r#"echo 'multiple\\slashes'"#);
@@ -153,7 +153,7 @@ fn test_backslash_inside_single_quotes() {
 }
 
 #[test]
-fn test_executable_in_quotes() {
+fn executable_in_quotes() {
     let mut shell = TestShell::new();
 
     shell.send(r#""echo" hello world"#);

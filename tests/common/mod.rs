@@ -4,7 +4,9 @@ use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::symlink;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -21,39 +23,24 @@ const TARGET_SUBDIR: &str = "release";
 
 pub struct TestShell {
     pty_session: PtySession,
+    pub dir: TestDir,
 }
 
 impl TestShell {
+    /// Creates a new test shell with a temporary test directory for it, the shell will `cd` into
+    /// the test directory on startup.
     pub fn new() -> Self {
         let bin_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("target")
             .join(TARGET_SUBDIR)
             .join("blob-shell");
-        println!("BINARY {:?}", bin_path);
+        println!("Running binary {:?}", bin_path);
 
-        let mut pty_session = rexpect::spawn(
-            bin_path.to_str().expect("Failed to get executable path"),
-            Some(2000),
-        )
-        .expect("Failed to spawn shell");
-
-        pty_session
-            .exp_string("$ ")
-            .expect("Failed to get initial '$ '");
-
-        Self { pty_session }
-    }
-
-    pub fn new_with_extra_path(dir: &tempfile::TempDir) -> Self {
-        let bin_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("target")
-            .join(TARGET_SUBDIR)
-            .join("blob-shell");
-        println!("BINARY {:?}", bin_path);
+        let dir = TestDir::new();
 
         let path_var = env::var("PATH").expect("Failed to get PATH environment variable");
         let mut paths = env::split_paths(&path_var).collect::<Vec<_>>();
-        paths.push(dir.path().to_path_buf());
+        paths.push(dir.path_as_buf());
         let new_path_var = env::join_paths(paths).expect("Failed to join paths");
 
         let mut command = Command::new(&bin_path.to_str().expect("Failed to get exectuable path"));
@@ -65,12 +52,9 @@ impl TestShell {
             .exp_string("$ ")
             .expect("Failed to get initial '$ '");
 
-        Self { pty_session }
-    }
+        let mut shell = Self { pty_session, dir };
 
-    pub fn new_with_cd(dir: &tempfile::TempDir) -> Self {
-        let mut shell = Self::new();
-        shell.send(&format!("cd {}\r", dir.path().to_str().unwrap()));
+        shell.send(&format!("cd {}\r", shell.dir.path_as_str()));
         shell
     }
 
@@ -113,11 +97,41 @@ impl TestShell {
     }
 }
 
-pub fn create_dir() -> tempfile::TempDir {
-    println!("Creating temprorary directory");
-    let dir = tempfile::tempdir().expect("Failed to create temp dir");
-    println!("Created temproary directory {:?}", dir.path());
-    dir
+pub struct TestDir {
+    dir: tempfile::TempDir,
+}
+
+impl TestDir {
+    fn new() -> Self {
+        println!("Creating temprorary directory");
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        println!("Created temproary directory {:?}", dir.path());
+        Self { dir }
+    }
+
+    pub fn create_file(&self, name: &str, content: &str) -> TestFile {
+        TestFile::create(self, name, content)
+    }
+
+    pub fn create_executable(&self, name: &str) -> TestExecutable {
+        TestExecutable::create(self, name)
+    }
+
+    pub fn create_executable_with_content(&self, name: &str, content: &str) -> TestExecutable {
+        TestExecutable::create_with_content(self, name, content)
+    }
+
+    pub fn path(&self) -> &Path {
+        self.dir.path()
+    }
+
+    pub fn path_as_str(&self) -> &str {
+        self.path().to_str().unwrap()
+    }
+
+    pub fn path_as_buf(&self) -> PathBuf {
+        self.path().to_path_buf()
+    }
 }
 
 pub struct TestFile {
@@ -125,7 +139,7 @@ pub struct TestFile {
 }
 
 impl TestFile {
-    pub fn create(dir: &tempfile::TempDir, name: &str, content: &str) -> Self {
+    pub fn create(dir: &TestDir, name: &str, content: &str) -> Self {
         let test_file = Self::open(dir, name);
 
         if let Some(path) = test_file.path.parent() {
@@ -140,7 +154,7 @@ impl TestFile {
         test_file
     }
 
-    pub fn open(dir: &tempfile::TempDir, name: &str) -> Self {
+    pub fn open(dir: &TestDir, name: &str) -> Self {
         let path = dir.path().join(name);
         println!("Creating test file {:?}", path);
         Self { path }
@@ -152,12 +166,36 @@ pub struct TestExecutable {
 }
 
 impl TestExecutable {
-    pub fn create(dir: &tempfile::TempDir, name: &str) -> Self {
+    pub fn create(dir: &TestDir, name: &str) -> Self {
         let path = dir.path().join(name);
         println!("Creating test executable {:?}", path);
 
         symlink("/bin/true", &path).expect("Failed to create symlink to '/bin/true'");
 
         Self { path }
+    }
+
+    pub fn create_with_content(dir: &TestDir, name: &str, content: &str) -> Self {
+        let path = dir.path().join(name);
+        println!(
+            "Creating test executable {:?} with content '{}'",
+            path, content
+        );
+
+        let mut executable = File::create(&path).expect("Failed to create test executable");
+        executable
+            .write_all(content.as_bytes())
+            .expect("Failed to add contents to test executable");
+        let mut perms = fs::metadata(&path)
+            .expect("Failed to get executable metadata")
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&path, perms).expect("Failed to set executable permissions");
+
+        Self { path }
+    }
+
+    pub fn path_as_string(&self) -> String {
+        self.path.to_str().unwrap().to_owned()
     }
 }

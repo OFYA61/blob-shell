@@ -3,14 +3,14 @@ mod common;
 use self::common::TestShell;
 
 #[test]
-fn test_exit_builtin() {
+fn exit_builtin() {
     let mut shell = TestShell::new();
     shell.send("exit\r\r");
     shell.assert_is_terminated();
 }
 
 #[test]
-fn test_invalid_commands() {
+fn invalid_commands() {
     let mut shell = TestShell::new();
 
     shell.send("invalid_command");
@@ -20,7 +20,7 @@ fn test_invalid_commands() {
 }
 
 #[test]
-fn test_echo_builtin() {
+fn echo_builtin() {
     let mut shell = TestShell::new();
 
     shell.send("echo apple banana");
@@ -30,7 +30,7 @@ fn test_echo_builtin() {
 }
 
 #[test]
-fn test_type_builtin() {
+fn type_builtin() {
     let mut shell = TestShell::new();
 
     shell.send("type echo");

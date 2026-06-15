@@ -5,10 +5,7 @@ use std::env;
 use std::fs;
 
 #[test]
-fn test_pwd_and_type_pwd() {
-    let current_dir = env::current_dir().unwrap();
-    let current_dir_str = current_dir.to_str().unwrap();
-
+fn pwd_and_type_pwd() {
     let mut shell = TestShell::new();
 
     shell.send("type pwd");
@@ -19,11 +16,11 @@ fn test_pwd_and_type_pwd() {
     shell.send("pwd");
     shell.exp_string("pwd");
     shell.send("\r");
-    shell.exp_string(current_dir_str);
+    shell.exp_string(&shell.dir.path_as_str().to_owned());
 }
 
 #[test]
-fn test_cd_absolute_and_errors() {
+fn cd_absolute_and_errors() {
     let mut shell = TestShell::new();
 
     shell.send("cd /tmp");
@@ -42,13 +39,12 @@ fn test_cd_absolute_and_errors() {
 }
 
 #[test]
-fn test_cd_relative_paths() {
-    let dir = common::create_dir();
-    let dir_path = dir.path().to_str().unwrap();
-    let folder = "test-folder";
-    fs::create_dir_all(dir.path().join(folder)).expect("Failed to create subfolder in temp dir");
-
+fn cd_relative_paths() {
     let mut shell = TestShell::new();
+    let dir_path = shell.dir.path_as_str().to_owned();
+    let folder = "test-folder";
+    fs::create_dir_all(shell.dir.path().join(folder))
+        .expect("Failed to create subfolder in temp dir");
 
     shell.send(&format!("cd {}", dir_path));
     shell.exp_string(&format!("cd {}", dir_path));
@@ -57,7 +53,7 @@ fn test_cd_relative_paths() {
     shell.send("pwd");
     shell.exp_string("pwd");
     shell.send("\r");
-    shell.exp_string(dir_path);
+    shell.exp_string(&dir_path);
 
     shell.send(&format!("cd {}", folder));
     shell.exp_string(&format!("cd {}", folder));
@@ -66,15 +62,14 @@ fn test_cd_relative_paths() {
     shell.send("pwd");
     shell.exp_string("pwd");
     shell.send("\r");
-    shell.exp_string(dir.path().join(folder).to_str().unwrap());
+    shell.exp_string(shell.dir.path().join(folder).to_str().unwrap());
 }
 
 #[test]
-fn test_cd_home_directory() {
-    let home = env::var("HOME")
-        .unwrap_or_else(|_| common::create_dir().path().to_str().unwrap().to_owned());
-
+fn cd_home_directory() {
     let mut shell = TestShell::new();
+
+    let home = env::var("HOME").unwrap_or_else(|_| shell.dir.path_as_str().to_owned());
 
     shell.send("cd /");
     shell.exp_string("cd /");

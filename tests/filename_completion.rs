@@ -1,16 +1,12 @@
 mod common;
 
-use self::common::TestFile;
 use self::common::TestShell;
-use self::common::create_dir;
 
 #[test]
-fn test_file_completion() {
-    let dir = create_dir();
+fn file_completion() {
+    let mut shell = TestShell::new();
+    let _ = shell.dir.create_file("test.txt", "Hello World!");
 
-    let _ = TestFile::create(&dir, "test.txt", "Hello World!");
-
-    let mut shell = TestShell::new_with_cd(&dir);
     shell.send("cat tes\t");
     shell.exp_string("cat test.txt");
     shell.send("\r");
@@ -21,12 +17,10 @@ fn test_file_completion() {
 }
 
 #[test]
-fn test_file_in_subfolder_completion() {
-    let dir = create_dir();
+fn file_in_subfolder_completion() {
+    let mut shell = TestShell::new();
+    let _ = shell.dir.create_file("subfolder/test.txt", "Hello World!");
 
-    let _ = TestFile::create(&dir, "subfolder/test.txt", "Hello World!");
-
-    let mut shell = TestShell::new_with_cd(&dir);
     shell.send("cat subfolder/tes\t");
     shell.exp_string("cat subfolder/test.txt");
     shell.send("\r");
@@ -34,12 +28,9 @@ fn test_file_in_subfolder_completion() {
 }
 
 #[test]
-fn test_folder_completion() {
-    let dir = create_dir();
-
-    let _ = TestFile::create(&dir, "subfolder/test.txt", "Hello World!");
-
-    let mut shell = TestShell::new_with_cd(&dir);
+fn folder_completion() {
+    let mut shell = TestShell::new();
+    let _ = shell.dir.create_file("subfolder/test.txt", "Hello World!");
 
     shell.send("cat subfo\t");
     shell.exp_string("cat subfolder/");
@@ -50,12 +41,11 @@ fn test_folder_completion() {
 }
 
 #[test]
-fn test_nested_folder_completion() {
-    let dir = create_dir();
-
-    let _ = TestFile::create(&dir, "folder1/folder2/folder3/test.txt", "Hello World!");
-
-    let mut shell = TestShell::new_with_cd(&dir);
+fn nested_folder_completion() {
+    let mut shell = TestShell::new();
+    let _ = shell
+        .dir
+        .create_file("folder1/folder2/folder3/test.txt", "Hello World!");
 
     shell.send("cat folde\t");
     shell.exp_string("cat folder1/");
@@ -68,13 +58,11 @@ fn test_nested_folder_completion() {
 }
 
 #[test]
-fn test_multiple_file_completion_with_lcp() {
-    let dir = create_dir();
-    let _ = TestFile::create(&dir, "test1.txt", "Content 1");
-    let _ = TestFile::create(&dir, "test2.txt", "Content 2");
-    let _ = TestFile::create(&dir, "test3.txt", "Content 3");
-
-    let mut shell = TestShell::new_with_cd(&dir);
+fn multiple_file_completion_with_lcp() {
+    let mut shell = TestShell::new();
+    let _ = shell.dir.create_file("test1.txt", "Content 1");
+    let _ = shell.dir.create_file("test2.txt", "Content 2");
+    let _ = shell.dir.create_file("test3.txt", "Content 3");
 
     shell.send("cat \t");
     shell.exp_string("cat test");
@@ -83,13 +71,11 @@ fn test_multiple_file_completion_with_lcp() {
 }
 
 #[test]
-fn test_multiple_file_completion_without_lcp() {
-    let dir = create_dir();
-    let _ = TestFile::create(&dir, "test.txt", "Content 1");
-    let _ = TestFile::create(&dir, "file.txt", "Content 2");
-    let _ = TestFile::create(&dir, "dir/file.txt", "Content 3");
-
-    let mut shell = TestShell::new_with_cd(&dir);
+fn multiple_file_completion_without_lcp() {
+    let mut shell = TestShell::new();
+    let _ = shell.dir.create_file("test.txt", "Content 1");
+    let _ = shell.dir.create_file("file.txt", "Content 2");
+    let _ = shell.dir.create_file("dir/file.txt", "Content 3");
 
     shell.send("cat \t");
     shell.exp_string("cat \x07");
