@@ -1,4 +1,3 @@
-use crossterm::terminal::disable_raw_mode;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -193,9 +192,16 @@ pub async fn process(
         }
 
         Builtin::Jobs => {
-            disable_raw_mode().unwrap();
-            for (_, job) in jobs.iter() {
-                println!("[{}]+  {} {}", job.id, job.status, job.command,);
+            let next_job_id = jobs.id_counter;
+            for (id, job) in jobs.iter() {
+                let marker = if *id == next_job_id - 1 {
+                    '+'
+                } else if *id == next_job_id - 2 {
+                    '-'
+                } else {
+                    ' '
+                };
+                println!("[{}]{}  {} {}", job.id, marker, job.status, job.command,);
             }
         }
 

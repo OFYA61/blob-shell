@@ -4,7 +4,7 @@ use std::fmt::Display;
 
 #[derive(Debug)]
 pub struct Jobs {
-    id_counter: usize,
+    pub id_counter: usize,
     map: BTreeMap<usize, Job>,
 }
 
