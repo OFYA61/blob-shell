@@ -195,7 +195,7 @@ pub async fn process(
 
         Builtin::Jobs => {
             let mut jobs = jobs.lock().await;
-            jobs.log_running_jobs();
+            jobs.log_jobs();
             jobs.reap_done_jobs(false);
         }
 

@@ -29,11 +29,11 @@ impl Jobs {
         self.map.get(&id).unwrap()
     }
 
-    pub fn log_running_jobs(&self) {
+    pub fn log_jobs(&self) {
         for (_, job) in self.map.iter().rev().skip(2).rev() {
             println!("[{}]  {} {}", job.id, job.status, job.command);
         }
-        if let Some((_, job)) = self.map.iter().rev().skip(1).next() {
+        if let Some((_, job)) = self.map.iter().rev().nth(1) {
             println!("[{}]- {} {}", job.id, job.status, job.command);
         }
         if let Some((_, job)) = self.map.iter().rev().next() {
@@ -97,12 +97,6 @@ impl Job {
 pub enum JobStatus {
     Running,
     Done,
-}
-
-impl JobStatus {
-    pub fn is_running(&self) -> bool {
-        *self == Self::Running
-    }
 }
 
 impl Display for JobStatus {
