@@ -31,41 +31,37 @@ impl Jobs {
 
     pub fn log_running_jobs(&self) {
         for (_, job) in self.map.iter().rev().skip(2).rev() {
-            if job.status.is_running() {
-                println!("[{}]  {} {}", job.id, job.status, job.command);
-            }
+            println!("[{}]  {} {}", job.id, job.status, job.command);
         }
         if let Some((_, job)) = self.map.iter().rev().skip(1).next() {
-            if job.status.is_running() {
-                println!("[{}]- {} {}", job.id, job.status, job.command);
-            }
+            println!("[{}]- {} {}", job.id, job.status, job.command);
         }
         if let Some((_, job)) = self.map.iter().rev().next() {
-            if job.status.is_running() {
-                println!("[{}]+ {} {}", job.id, job.status, job.command);
-            }
+            println!("[{}]+ {} {}", job.id, job.status, job.command);
         }
     }
 
-    pub fn reap_done_jobs(&mut self) {
+    pub fn reap_done_jobs(&mut self, print: bool) {
         let ids_to_remove = self
             .map
             .iter()
             .filter(|(_, job)| job.status == JobStatus::Done)
             .map(|(id, job)| {
-                let marker = if let Some(last_id) = self.map.keys().last()
-                    && last_id == id
-                {
-                    '+'
-                } else if let Some(second_last_id) = self.map.keys().rev().nth(1)
-                    && second_last_id == id
-                {
-                    '-'
-                } else {
-                    ' '
-                };
+                if print {
+                    let marker = if let Some(last_id) = self.map.keys().last()
+                        && last_id == id
+                    {
+                        '+'
+                    } else if let Some(second_last_id) = self.map.keys().rev().nth(1)
+                        && second_last_id == id
+                    {
+                        '-'
+                    } else {
+                        ' '
+                    };
 
-                println!("[{}]{} {} {}", job.id, marker, job.status, job.command);
+                    println!("[{}]{} {} {}", job.id, marker, job.status, job.command);
+                }
                 *id
             })
             .collect::<Vec<usize>>();

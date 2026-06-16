@@ -23,7 +23,7 @@ async fn main() {
     let jobs = Arc::new(Mutex::new(Jobs::init()));
 
     loop {
-        jobs.lock().await.reap_done_jobs();
+        jobs.lock().await.reap_done_jobs(true);
 
         let command_raw = match input::get_input() {
             Ok(input) => input,
