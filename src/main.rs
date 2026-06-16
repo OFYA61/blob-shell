@@ -2,6 +2,7 @@ mod autocomplete;
 mod builtin;
 mod env;
 mod input;
+mod jobs;
 mod parser;
 
 use std::process::Stdio;
@@ -12,9 +13,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::process::Command;
 
+use self::jobs::Jobs;
+
 #[tokio::main]
 async fn main() {
-    let mut job_counter = 1;
+    let mut jobs = Jobs::init();
 
     loop {
         let command_raw = match input::get_input() {
@@ -60,7 +63,8 @@ async fn main() {
                         }
                     }
 
-                    if builtin::try_process(exec, &args, &mut stdout_files, &mut stderr_files).await
+                    if builtin::process(&jobs, exec, &args, &mut stdout_files, &mut stderr_files)
+                        .await
                     {
                         continue;
                     }
@@ -115,8 +119,8 @@ async fn main() {
                         };
 
                         if is_background {
-                            println!("[{}] {}", job_counter, pid);
-                            job_counter += 1;
+                            let job = jobs.create_job(pid, command_raw.to_owned());
+                            println!("[{}] {}", job.id, job.pid);
                             tokio::spawn(child_process_handler);
                         } else {
                             let _ = child_process_handler.await;

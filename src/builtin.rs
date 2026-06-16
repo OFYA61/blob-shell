@@ -1,3 +1,4 @@
+use crossterm::terminal::disable_raw_mode;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -9,6 +10,7 @@ use tokio::io::AsyncWriteExt;
 use crate::autocomplete::Candidate;
 use crate::env;
 use crate::env::ChangeDirError;
+use crate::jobs::Jobs;
 
 fn map() -> &'static HashMap<&'static str, Builtin> {
     static MAP: OnceLock<HashMap<&'static str, Builtin>> = OnceLock::new();
@@ -79,7 +81,8 @@ struct CompleteArgs {
 
 /// Try proecssing a bultin command. If none are found, returns `false`.
 /// If it is a bultin command returns `true`, even if wrong argument types get passed
-pub async fn try_process(
+pub async fn process(
+    jobs: &Jobs,
     exec: &str,
     args: &Vec<&str>,
     stdout_files: &mut Vec<File>,
@@ -171,9 +174,13 @@ pub async fn try_process(
                         env::add_completer(args.extra.first().unwrap().clone(), new_completion);
                     } else if let Some(program) = args.program {
                         if let Some(completion) = env::get_completer(&program) {
-                            println!("complete -C '{}' {}", completion.path.display(), program);
+                            write_stdout!(
+                                "complete -C '{}' {}",
+                                completion.path.display(),
+                                program
+                            );
                         } else {
-                            println!("complete: {}: no completion specification", program);
+                            write_stdout!("complete: {}: no completion specification", program);
                         }
                     } else if let Some(remove) = args.remove {
                         env::remove_completer(&remove);
@@ -185,7 +192,12 @@ pub async fn try_process(
             }
         }
 
-        Builtin::Jobs => {}
+        Builtin::Jobs => {
+            disable_raw_mode().unwrap();
+            for (_, job) in jobs.iter() {
+                println!("[{}]+  {} {}", job.id, job.status, job.command,);
+            }
+        }
 
         Builtin::Type => {
             let cmd = expect_single_argument!();
