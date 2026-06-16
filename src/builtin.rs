@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::fs::File;
 
 use clap::Parser;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
 
 use crate::autocomplete::Candidate;
 use crate::env;
@@ -81,7 +83,7 @@ struct CompleteArgs {
 /// Try proecssing a bultin command. If none are found, returns `false`.
 /// If it is a bultin command returns `true`, even if wrong argument types get passed
 pub async fn process(
-    jobs: &Jobs,
+    jobs: Arc<Mutex<Jobs>>,
     exec: &str,
     args: &Vec<&str>,
     stdout_files: &mut Vec<File>,
@@ -192,17 +194,17 @@ pub async fn process(
         }
 
         Builtin::Jobs => {
-            let next_job_id = jobs.id_counter;
-            for (id, job) in jobs.iter() {
-                let marker = if *id == next_job_id - 1 {
-                    '+'
-                } else if *id == next_job_id - 2 {
-                    '-'
-                } else {
-                    ' '
-                };
-                println!("[{}]{}  {} {}", job.id, marker, job.status, job.command,);
+            let mut jobs = jobs.lock().await;
+            for (_, job) in jobs.iter().rev().skip(2).rev() {
+                println!("[{}]  {} {}", job.id, job.status, job.command);
             }
+            if let Some((_, job)) = jobs.iter().rev().skip(1).next() {
+                println!("[{}]- {} {}", job.id, job.status, job.command);
+            }
+            if let Some((_, job)) = jobs.iter().rev().next() {
+                println!("[{}]+ {} {}", job.id, job.status, job.command);
+            }
+            jobs.cleanup_completed_jobs();
         }
 
         Builtin::Type => {

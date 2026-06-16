@@ -6,18 +6,21 @@ mod jobs;
 mod parser;
 
 use std::process::Stdio;
+use std::sync::Arc;
 
 use crossterm::terminal::disable_raw_mode;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::process::Command;
+use tokio::sync::Mutex;
 
+use self::jobs::Job;
 use self::jobs::Jobs;
 
 #[tokio::main]
 async fn main() {
-    let mut jobs = Jobs::init();
+    let jobs = Arc::new(Mutex::new(Jobs::init()));
 
     loop {
         let command_raw = match input::get_input() {
@@ -63,8 +66,14 @@ async fn main() {
                         }
                     }
 
-                    if builtin::process(&jobs, exec, &args, &mut stdout_files, &mut stderr_files)
-                        .await
+                    if builtin::process(
+                        Arc::clone(&jobs),
+                        exec,
+                        &args,
+                        &mut stdout_files,
+                        &mut stderr_files,
+                    )
+                    .await
                     {
                         continue;
                     }
@@ -83,47 +92,61 @@ async fn main() {
                         }
 
                         let mut child = child.spawn().expect("Failed to execute process");
-                        let pid = child.id().unwrap_or(0);
+                        let pid = child.id().unwrap_or(0) as i32;
 
-                        let child_process_handler = async move {
-                            if let Some(stdout) = child.stdout.take() {
-                                let mut reader = BufReader::new(stdout).lines();
-                                while let Ok(Some(line)) = reader.next_line().await {
-                                    let bytes = format!("{}\n", line).as_bytes().to_vec();
-                                    for file in &mut stdout_files {
-                                        file.write_all(&bytes)
-                                            .await
-                                            .expect("Failed to write to file");
-                                        file.flush().await.expect("Failed to flush file");
+                        let child_process_handler =
+                            async move |id: Option<usize>, jobs: Option<Arc<Mutex<Jobs>>>| {
+                                if let Some(stdout) = child.stdout.take() {
+                                    let mut reader = BufReader::new(stdout).lines();
+                                    while let Ok(Some(line)) = reader.next_line().await {
+                                        let bytes = format!("{}\n", line).as_bytes().to_vec();
+                                        for file in &mut stdout_files {
+                                            file.write_all(&bytes)
+                                                .await
+                                                .expect("Failed to write to file");
+                                            file.flush().await.expect("Failed to flush file");
+                                        }
                                     }
                                 }
-                            }
 
-                            if let Some(stderr) = child.stderr.take() {
-                                let mut reader = BufReader::new(stderr).lines();
-                                while let Ok(Some(line)) = reader.next_line().await {
-                                    let bytes = format!("{}\n", line).as_bytes().to_vec();
-                                    for file in &mut stderr_files {
-                                        file.write_all(&bytes)
-                                            .await
-                                            .expect("Failed to write to file");
-                                        file.flush().await.expect("Failed to flush file");
+                                if let Some(stderr) = child.stderr.take() {
+                                    let mut reader = BufReader::new(stderr).lines();
+                                    while let Ok(Some(line)) = reader.next_line().await {
+                                        let bytes = format!("{}\n", line).as_bytes().to_vec();
+                                        for file in &mut stderr_files {
+                                            file.write_all(&bytes)
+                                                .await
+                                                .expect("Failed to write to file");
+                                            file.flush().await.expect("Failed to flush file");
+                                        }
                                     }
                                 }
-                            }
 
-                            child
-                                .wait_with_output()
-                                .await
-                                .expect("Failed to wait for child with output")
-                        };
+                                let output = child
+                                    .wait_with_output()
+                                    .await
+                                    .expect("Failed to wait for child with output");
+
+                                if let Some(id) = id
+                                    && let Some(jobs) = jobs
+                                {
+                                    jobs.lock()
+                                        .await
+                                        .iter_mut()
+                                        .find(|(jid, _)| **jid == id)
+                                        .map(|(_, job)| job.mark_done());
+                                }
+
+                                output
+                            };
 
                         if is_background {
-                            let job = jobs.create_job(pid, command_raw.to_owned());
-                            println!("[{}] {}", job.id, job.pid);
-                            tokio::spawn(child_process_handler);
+                            let command = command_raw[..command_raw.len() - 1].trim().to_owned();
+                            let Job { id, pid, .. } = *jobs.lock().await.create_job(pid, command);
+                            println!("[{}] {}", id, pid);
+                            tokio::spawn(child_process_handler(Some(id), Some(Arc::clone(&jobs))));
                         } else {
-                            let _ = child_process_handler.await;
+                            let _ = child_process_handler(None, None).await;
                         }
 
                         continue;

@@ -5,7 +5,7 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub struct Jobs {
     pub id_counter: usize,
-    map: BTreeMap<usize, Job>,
+    pub map: BTreeMap<usize, Job>,
 }
 
 impl Jobs {
@@ -20,7 +20,11 @@ impl Jobs {
         self.map.iter()
     }
 
-    pub fn create_job(&mut self, pid: u32, command: String) -> &Job {
+    pub fn iter_mut(&mut self) -> btree_map::IterMut<'_, usize, Job> {
+        self.map.iter_mut()
+    }
+
+    pub fn create_job(&mut self, pid: i32, command: String) -> &Job {
         let id = self.id_counter;
         let job = Job {
             id,
@@ -33,19 +37,38 @@ impl Jobs {
 
         self.map.get(&id).unwrap()
     }
+
+    pub fn cleanup_completed_jobs(&mut self) {
+        let ids_to_remove = self
+            .map
+            .iter()
+            .filter(|(_, job)| job.status == JobStatus::Done)
+            .map(|(id, _)| *id)
+            .collect::<Vec<usize>>();
+        ids_to_remove.iter().for_each(|id| {
+            self.map.remove(id);
+        });
+    }
 }
 
 #[derive(Debug)]
 pub struct Job {
     pub id: usize,
-    pub pid: u32,
+    pub pid: i32,
     pub command: String,
     pub status: JobStatus,
 }
 
-#[derive(Debug)]
+impl Job {
+    pub fn mark_done(&mut self) {
+        self.status = JobStatus::Done;
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum JobStatus {
     Running,
+    Done,
 }
 
 impl Display for JobStatus {
@@ -53,6 +76,7 @@ impl Display for JobStatus {
         // Adding the padding to `println!` doesn't work for some reason, so I have to do it here
         match self {
             Self::Running => f.write_str(&format!("{:<24}", "Running")),
+            Self::Done => f.write_str(&format!("{:<24}", "Done")),
         }
     }
 }
