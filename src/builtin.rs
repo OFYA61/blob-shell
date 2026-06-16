@@ -195,16 +195,8 @@ pub async fn process(
 
         Builtin::Jobs => {
             let mut jobs = jobs.lock().await;
-            for (_, job) in jobs.iter().rev().skip(2).rev() {
-                println!("[{}]  {} {}", job.id, job.status, job.command);
-            }
-            if let Some((_, job)) = jobs.iter().rev().skip(1).next() {
-                println!("[{}]- {} {}", job.id, job.status, job.command);
-            }
-            if let Some((_, job)) = jobs.iter().rev().next() {
-                println!("[{}]+ {} {}", job.id, job.status, job.command);
-            }
-            jobs.cleanup_completed_jobs();
+            jobs.log_running_jobs();
+            jobs.reap_done_jobs();
         }
 
         Builtin::Type => {

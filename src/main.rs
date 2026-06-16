@@ -23,7 +23,7 @@ async fn main() {
     let jobs = Arc::new(Mutex::new(Jobs::init()));
 
     loop {
-        jobs.lock().await.cleanup_completed_jobs();
+        jobs.lock().await.reap_done_jobs();
 
         let command_raw = match input::get_input() {
             Ok(input) => input,
@@ -132,11 +132,7 @@ async fn main() {
                                 if let Some(id) = id
                                     && let Some(jobs) = jobs
                                 {
-                                    jobs.lock()
-                                        .await
-                                        .iter_mut()
-                                        .find(|(jid, _)| **jid == id)
-                                        .map(|(_, job)| job.mark_done());
+                                    jobs.lock().await.mark_job_done(id);
                                 }
 
                                 output

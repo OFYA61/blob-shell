@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::collections::btree_map;
 use std::fmt::Display;
 
 #[derive(Debug)]
@@ -16,14 +15,6 @@ impl Jobs {
         }
     }
 
-    pub fn iter(&self) -> btree_map::Iter<'_, usize, Job> {
-        self.map.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> btree_map::IterMut<'_, usize, Job> {
-        self.map.iter_mut()
-    }
-
     pub fn create_job(&mut self, pid: i32, command: String) -> &Job {
         let id = self.id_counter;
         let job = Job {
@@ -38,16 +29,57 @@ impl Jobs {
         self.map.get(&id).unwrap()
     }
 
-    pub fn cleanup_completed_jobs(&mut self) {
+    pub fn log_running_jobs(&self) {
+        for (_, job) in self.map.iter().rev().skip(2).rev() {
+            if job.status.is_running() {
+                println!("[{}]  {} {}", job.id, job.status, job.command);
+            }
+        }
+        if let Some((_, job)) = self.map.iter().rev().skip(1).next() {
+            if job.status.is_running() {
+                println!("[{}]- {} {}", job.id, job.status, job.command);
+            }
+        }
+        if let Some((_, job)) = self.map.iter().rev().next() {
+            if job.status.is_running() {
+                println!("[{}]+ {} {}", job.id, job.status, job.command);
+            }
+        }
+    }
+
+    pub fn reap_done_jobs(&mut self) {
         let ids_to_remove = self
             .map
             .iter()
             .filter(|(_, job)| job.status == JobStatus::Done)
-            .map(|(id, _)| *id)
+            .map(|(id, job)| {
+                let marker = if let Some(last_id) = self.map.keys().last()
+                    && last_id == id
+                {
+                    '+'
+                } else if let Some(second_last_id) = self.map.keys().rev().nth(1)
+                    && second_last_id == id
+                {
+                    '-'
+                } else {
+                    ' '
+                };
+
+                println!("[{}]{} {} {}", job.id, marker, job.status, job.command);
+                *id
+            })
             .collect::<Vec<usize>>();
+
         ids_to_remove.iter().for_each(|id| {
             self.map.remove(id);
         });
+    }
+
+    pub fn mark_job_done(&mut self, id: usize) {
+        self.map
+            .iter_mut()
+            .find(|(jid, _)| **jid == id)
+            .map(|(_, job)| job.mark_done());
     }
 }
 
@@ -69,6 +101,12 @@ impl Job {
 pub enum JobStatus {
     Running,
     Done,
+}
+
+impl JobStatus {
+    pub fn is_running(&self) -> bool {
+        *self == Self::Running
+    }
 }
 
 impl Display for JobStatus {
