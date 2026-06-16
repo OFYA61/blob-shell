@@ -15,17 +15,20 @@ use tokio::io::BufReader;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
+use self::builtin::Builtin;
+use self::env::Env;
 use self::jobs::Job;
 use self::jobs::Jobs;
 
 #[tokio::main]
 async fn main() {
+    let env = Arc::new(Mutex::new(Env::init()));
     let jobs = Arc::new(Mutex::new(Jobs::init()));
 
     loop {
         jobs.lock().await.reap_done_jobs(true);
 
-        let command_raw = match input::get_input() {
+        let command_raw = match input::get_input(env.lock().await) {
             Ok(input) => input,
             Err(err) => {
                 disable_raw_mode().expect("Failed to disable raw mode");
@@ -68,19 +71,20 @@ async fn main() {
                         }
                     }
 
-                    if builtin::process(
-                        Arc::clone(&jobs),
-                        exec,
-                        &args,
-                        &mut stdout_files,
-                        &mut stderr_files,
-                    )
-                    .await
-                    {
+                    if let Some(builtin) = Builtin::from_str(exec) {
+                        builtin
+                            .process(
+                                env.lock().await,
+                                jobs.lock().await,
+                                args,
+                                stdout_files,
+                                stderr_files,
+                            )
+                            .await;
                         continue;
                     }
 
-                    if let Some(_) = env::get_command(&exec) {
+                    if let Some(_) = env.lock().await.get_command(&exec) {
                         let mut child = Command::new(&exec);
                         if args.len() > 0 {
                             child.args(args);

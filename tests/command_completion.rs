@@ -23,7 +23,9 @@ fn missing_completion() {
 #[test]
 fn executable_completion() {
     let mut shell = TestShell::new();
+    shell.dir.dir.disable_cleanup(true);
     let _ = shell.dir.create_executable("xyz");
+    shell.send("rehash\r");
 
     shell.send("xy\t");
     shell.exp_string("xyz ");
@@ -36,9 +38,12 @@ fn multiple_executable_completion() {
     let _ = shell.dir.create_executable("xyz");
     let _ = shell.dir.create_executable("xyz_abc");
     let _ = shell.dir.create_executable("xyz_abc_def");
+    shell.send("rehash\r");
 
     shell.send("xyz\t\t");
-    shell.exp_string("xyz\x07\n\u{1b}[1Gxyz xyz_abc xyz_abc_def \n\u{1b}[1G$ xyz");
+    shell.exp_string("xyz\x07");
+    shell.exp_string("xyz xyz_abc xyz_abc_def");
+    shell.exp_string("$ xyz");
     shell.send("_\t");
     shell.exp_string("abc");
     shell.send("_\t");

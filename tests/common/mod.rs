@@ -98,7 +98,7 @@ impl TestShell {
 }
 
 pub struct TestDir {
-    dir: tempfile::TempDir,
+    pub dir: tempfile::TempDir,
 }
 
 impl TestDir {

@@ -5,9 +5,6 @@ use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::LazyLock;
-use std::sync::Mutex;
-use std::sync::MutexGuard;
 
 use crate::autocomplete::Candidate;
 
@@ -38,7 +35,7 @@ impl Completer {
 }
 
 #[derive(Debug)]
-struct Env {
+pub struct Env {
     home: String,
     #[allow(dead_code)]
     paths: Vec<PathBuf>,
@@ -47,7 +44,7 @@ struct Env {
 }
 
 impl Env {
-    fn init() -> Self {
+    pub fn init() -> Self {
         let home = env::var("HOME").expect("Failed to get home environment variable");
         let path_var = env::var("PATH");
         if path_var.is_err() {
@@ -86,7 +83,11 @@ impl Env {
         }
     }
 
-    fn get_command(&self, command: &str) -> Option<PathBuf> {
+    pub fn reinit(&mut self) {
+        *self = Self::init();
+    }
+
+    pub fn get_command(&self, command: &str) -> Option<PathBuf> {
         self.programs.get(command).map(|path| path.clone())
     }
 
@@ -94,14 +95,14 @@ impl Env {
         env::current_dir().expect("Failed to get current directory")
     }
 
-    fn get_current_dir_as_string(&self) -> String {
+    pub fn get_current_dir_as_string(&self) -> String {
         self.get_current_dir()
             .to_str()
             .expect("Failed to parse to string")
             .to_owned()
     }
 
-    fn change_dir(&mut self, new_dir: &str) -> Result<(), ChangeDirError> {
+    pub fn change_dir(&mut self, new_dir: &str) -> Result<(), ChangeDirError> {
         let dir: String;
         if new_dir.starts_with("~") {
             dir = new_dir.replace("~", &self.home);
@@ -112,7 +113,7 @@ impl Env {
         env::set_current_dir(&dir).map_err(|_| ChangeDirError::DoesNotExist)
     }
 
-    fn get_auto_complete_program_candidates(&self, prefix: &str) -> Vec<Candidate> {
+    pub fn get_auto_complete_program_candidates(&self, prefix: &str) -> Vec<Candidate> {
         self.programs
             .keys()
             .filter(|name| name.starts_with(prefix))
@@ -121,7 +122,7 @@ impl Env {
             .collect()
     }
 
-    fn get_auto_complete_dir_candidates(&self, subdir: &str, prefix: &str) -> Vec<Candidate> {
+    pub fn get_auto_complete_dir_candidates(&self, subdir: &str, prefix: &str) -> Vec<Candidate> {
         let mut candidates = Vec::new();
         let dir = self.get_current_dir().join(subdir);
 
@@ -144,52 +145,15 @@ impl Env {
         candidates
     }
 
-    fn add_completer(&mut self, program: String, path: PathBuf) {
+    pub fn add_completer(&mut self, program: String, path: PathBuf) {
         self.completers.insert(program, Completer::new(path));
     }
 
-    fn get_completer(&self, program: &str) -> Option<Completer> {
+    pub fn get_completer(&self, program: &str) -> Option<Completer> {
         self.completers.get(program).cloned()
     }
 
-    fn remove_completer(&mut self, program: &str) {
+    pub fn remove_completer(&mut self, program: &str) {
         let _ = self.completers.remove(program);
     }
-}
-
-fn env() -> MutexGuard<'static, Env> {
-    static ENV: LazyLock<Mutex<Env>> = LazyLock::new(|| Mutex::new(Env::init()));
-    ENV.lock().unwrap()
-}
-
-pub fn get_command(command: &str) -> Option<PathBuf> {
-    env().get_command(command)
-}
-
-pub fn get_current_dir() -> String {
-    env().get_current_dir_as_string()
-}
-
-pub fn change_dir(new_dir: &str) -> Result<(), ChangeDirError> {
-    env().change_dir(new_dir)
-}
-
-pub fn get_auto_complete_program_candidates(prefix: &str) -> Vec<Candidate> {
-    env().get_auto_complete_program_candidates(prefix)
-}
-
-pub fn get_auto_complete_dir_candidates(subdir: &str, prefix: &str) -> Vec<Candidate> {
-    env().get_auto_complete_dir_candidates(subdir, prefix)
-}
-
-pub fn add_completer(program: String, path: PathBuf) {
-    env().add_completer(program, path);
-}
-
-pub fn get_completer(program: &str) -> Option<Completer> {
-    env().get_completer(program)
-}
-
-pub fn remove_completer(program: &str) {
-    env().remove_completer(program);
 }
