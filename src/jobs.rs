@@ -3,30 +3,42 @@ use std::fmt::Display;
 
 #[derive(Debug)]
 pub struct Jobs {
-    pub id_counter: usize,
     pub map: BTreeMap<usize, Job>,
 }
 
 impl Jobs {
     pub fn init() -> Self {
         Self {
-            id_counter: 1,
             map: BTreeMap::new(),
         }
     }
 
     pub fn create_job(&mut self, pid: i32, command: String) -> &Job {
-        let id = self.id_counter;
+        let mut available_id = 1;
+        for id in self.map.keys() {
+            if *id == available_id {
+                available_id = *id;
+                continue;
+            }
+            available_id = available_id + 1;
+            break;
+        }
+
+        if let Some(biggest_id) = self.map.keys().last()
+            && available_id == *biggest_id
+        {
+            available_id += 1;
+        }
+
         let job = Job {
-            id,
+            id: available_id,
             pid,
             command,
             status: JobStatus::Running,
         };
-        assert!(self.map.insert(id, job).is_none());
-        self.id_counter += 1;
+        assert!(self.map.insert(available_id, job).is_none());
 
-        self.map.get(&id).unwrap()
+        self.map.get(&available_id).unwrap()
     }
 
     pub fn log_jobs(&self) {
