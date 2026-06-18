@@ -1,9 +1,9 @@
+mod ast;
 mod autocomplete;
 mod builtin;
 mod env;
 mod input;
 mod jobs;
-mod parser;
 
 use std::process::Stdio;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ async fn main() {
             continue;
         }
 
-        let ast = parser::parse_to_ast(command_raw);
+        let ast = ast::parse(command_raw);
         if ast.is_err() {
             continue;
         }
@@ -50,7 +50,7 @@ async fn main() {
         // Interpret the AST
         for expr in ast.unwrap() {
             match expr {
-                parser::Expr::Command {
+                ast::Expr::Command {
                     exec,
                     args,
                     redirects,

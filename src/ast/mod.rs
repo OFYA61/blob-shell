@@ -8,7 +8,7 @@ use tokio::fs::OpenOptions;
 use self::tokenizer::Token;
 use self::tokenizer::TokenKind;
 
-pub fn parse_to_ast(command_raw: &str) -> Result<Vec<Expr>, ()> {
+pub fn parse(command_raw: &str) -> Result<Vec<Expr>, ()> {
     let tokens = tokenizer::tokenize(command_raw)?;
     Ok(Parser::new(tokens).parse().map_err(|_| ())?)
 }
