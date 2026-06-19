@@ -1,14 +1,13 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
+use std::fmt::Display;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use crate::autocomplete::Candidate;
 use crate::completer::Completer;
-use crate::job::Job;
-use crate::job::JobStatus;
 
 #[derive(Debug)]
 pub enum ChangeDirError {
@@ -142,7 +141,7 @@ impl State {
         let _ = self.completers.remove(program);
     }
 
-    pub fn create_job(&mut self, pid: i32, command: String) -> &Job {
+    pub fn create_job(&mut self, pid: i32, command: String) -> usize {
         let mut available_id = 1;
         for id in self.jobs.keys() {
             if *id == available_id {
@@ -165,9 +164,10 @@ impl State {
             command,
             status: JobStatus::Running,
         };
+        println!("[{}] {}", job.id, job.pid);
         assert!(self.jobs.insert(available_id, job).is_none());
 
-        self.jobs.get(&available_id).unwrap()
+        available_id
     }
 
     pub fn log_jobs(&self) {
@@ -217,5 +217,35 @@ impl State {
             .iter_mut()
             .find(|(jid, _)| **jid == id)
             .map(|(_, job)| job.mark_done());
+    }
+}
+
+#[derive(Debug)]
+pub struct Job {
+    pub id: usize,
+    pub pid: i32,
+    pub command: String,
+    pub status: JobStatus,
+}
+
+impl Job {
+    pub fn mark_done(&mut self) {
+        self.status = JobStatus::Done;
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum JobStatus {
+    Running,
+    Done,
+}
+
+impl Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Adding the padding to `println!` doesn't work for some reason, so I have to do it here
+        match self {
+            Self::Running => f.write_str(&format!("{:<24}", "Running")),
+            Self::Done => f.write_str(&format!("{:<24}", "Done")),
+        }
     }
 }

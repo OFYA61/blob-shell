@@ -3,7 +3,6 @@ mod autocomplete;
 mod builtin;
 mod completer;
 mod input;
-mod job;
 mod state;
 
 use std::process::Stdio;
@@ -17,7 +16,6 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use self::builtin::Builtin;
-use self::job::Job;
 use self::state::State;
 
 #[tokio::main]
@@ -138,8 +136,7 @@ async fn main() {
 
                         if is_background {
                             let command = command_raw[..command_raw.len() - 1].trim().to_owned();
-                            let Job { id, pid, .. } = *state.lock().await.create_job(pid, command);
-                            println!("[{}] {}", id, pid);
+                            let id = state.lock().await.create_job(pid, command);
                             tokio::spawn(child_process_handler(Some(id), Some(Arc::clone(&state))));
                         } else {
                             let _ = child_process_handler(None, None).await;
