@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -6,6 +7,8 @@ use std::path::PathBuf;
 
 use crate::autocomplete::Candidate;
 use crate::completer::Completer;
+use crate::job::Job;
+use crate::job::JobStatus;
 
 #[derive(Debug)]
 pub enum ChangeDirError {
@@ -19,6 +22,8 @@ pub struct State {
     paths: Vec<PathBuf>,
     programs: HashMap<String, PathBuf>,
     completers: HashMap<String, Completer>,
+
+    pub jobs: BTreeMap<usize, Job>,
 }
 
 impl State {
@@ -31,6 +36,7 @@ impl State {
                 paths: vec![],
                 programs: HashMap::new(),
                 completers: HashMap::new(),
+                jobs: BTreeMap::new(),
             };
         }
         let path_var = unsafe { path_var.unwrap_unchecked() };
@@ -58,6 +64,7 @@ impl State {
             paths,
             programs,
             completers: HashMap::new(),
+            jobs: BTreeMap::new(),
         }
     }
 
@@ -133,5 +140,82 @@ impl State {
 
     pub fn remove_completer(&mut self, program: &str) {
         let _ = self.completers.remove(program);
+    }
+
+    pub fn create_job(&mut self, pid: i32, command: String) -> &Job {
+        let mut available_id = 1;
+        for id in self.jobs.keys() {
+            if *id == available_id {
+                available_id = *id;
+                continue;
+            }
+            available_id = available_id + 1;
+            break;
+        }
+
+        if let Some(biggest_id) = self.jobs.keys().last()
+            && available_id == *biggest_id
+        {
+            available_id += 1;
+        }
+
+        let job = Job {
+            id: available_id,
+            pid,
+            command,
+            status: JobStatus::Running,
+        };
+        assert!(self.jobs.insert(available_id, job).is_none());
+
+        self.jobs.get(&available_id).unwrap()
+    }
+
+    pub fn log_jobs(&self) {
+        for (_, job) in self.jobs.iter().rev().skip(2).rev() {
+            println!("[{}]  {} {}", job.id, job.status, job.command);
+        }
+        if let Some((_, job)) = self.jobs.iter().rev().nth(1) {
+            println!("[{}]- {} {}", job.id, job.status, job.command);
+        }
+        if let Some((_, job)) = self.jobs.iter().rev().next() {
+            println!("[{}]+ {} {}", job.id, job.status, job.command);
+        }
+    }
+
+    pub fn reap_done_jobs(&mut self, print: bool) {
+        let ids_to_remove = self
+            .jobs
+            .iter()
+            .filter(|(_, job)| job.status == JobStatus::Done)
+            .map(|(id, job)| {
+                if print {
+                    let marker = if let Some(last_id) = self.jobs.keys().last()
+                        && last_id == id
+                    {
+                        '+'
+                    } else if let Some(second_last_id) = self.jobs.keys().rev().nth(1)
+                        && second_last_id == id
+                    {
+                        '-'
+                    } else {
+                        ' '
+                    };
+
+                    println!("[{}]{} {} {}", job.id, marker, job.status, job.command);
+                }
+                *id
+            })
+            .collect::<Vec<usize>>();
+
+        ids_to_remove.iter().for_each(|id| {
+            self.jobs.remove(id);
+        });
+    }
+
+    pub fn mark_job_done(&mut self, id: usize) {
+        self.jobs
+            .iter_mut()
+            .find(|(jid, _)| **jid == id)
+            .map(|(_, job)| job.mark_done());
     }
 }

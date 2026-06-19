@@ -3,7 +3,7 @@ mod autocomplete;
 mod builtin;
 mod completer;
 mod input;
-mod jobs;
+mod job;
 mod state;
 
 use std::process::Stdio;
@@ -17,17 +17,15 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use self::builtin::Builtin;
-use self::jobs::Job;
-use self::jobs::Jobs;
+use self::job::Job;
 use self::state::State;
 
 #[tokio::main]
 async fn main() {
     let state = Arc::new(Mutex::new(State::init()));
-    let jobs = Arc::new(Mutex::new(Jobs::init()));
 
     loop {
-        jobs.lock().await.reap_done_jobs(true);
+        state.lock().await.reap_done_jobs(true);
 
         let command_raw = match input::get_input(state.lock().await) {
             Ok(input) => input,
@@ -74,18 +72,13 @@ async fn main() {
 
                     if let Some(builtin) = Builtin::from_str(exec) {
                         builtin
-                            .process(
-                                state.lock().await,
-                                jobs.lock().await,
-                                args,
-                                stdout_files,
-                                stderr_files,
-                            )
+                            .process(state.lock().await, args, stdout_files, stderr_files)
                             .await;
                         continue;
                     }
 
-                    if let Some(_) = state.lock().await.get_command(&exec) {
+                    let command_maybe = state.lock().await.get_command(&exec);
+                    if let Some(_) = command_maybe {
                         let mut child = Command::new(&exec);
                         if args.len() > 0 {
                             child.args(args);
@@ -102,7 +95,7 @@ async fn main() {
                         let pid = child.id().unwrap_or(0) as i32;
 
                         let child_process_handler =
-                            async move |id: Option<usize>, jobs: Option<Arc<Mutex<Jobs>>>| {
+                            async move |id: Option<usize>, state: Option<Arc<Mutex<State>>>| {
                                 if let Some(stdout) = child.stdout.take() {
                                     let mut reader = BufReader::new(stdout).lines();
                                     while let Ok(Some(line)) = reader.next_line().await {
@@ -135,9 +128,9 @@ async fn main() {
                                     .expect("Failed to wait for child with output");
 
                                 if let Some(id) = id
-                                    && let Some(jobs) = jobs
+                                    && let Some(state) = state
                                 {
-                                    jobs.lock().await.mark_job_done(id);
+                                    state.lock().await.mark_job_done(id);
                                 }
 
                                 output
@@ -145,9 +138,9 @@ async fn main() {
 
                         if is_background {
                             let command = command_raw[..command_raw.len() - 1].trim().to_owned();
-                            let Job { id, pid, .. } = *jobs.lock().await.create_job(pid, command);
+                            let Job { id, pid, .. } = *state.lock().await.create_job(pid, command);
                             println!("[{}] {}", id, pid);
-                            tokio::spawn(child_process_handler(Some(id), Some(Arc::clone(&jobs))));
+                            tokio::spawn(child_process_handler(Some(id), Some(Arc::clone(&state))));
                         } else {
                             let _ = child_process_handler(None, None).await;
                         }

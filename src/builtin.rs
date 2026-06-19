@@ -8,7 +8,6 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::MutexGuard;
 
 use crate::autocomplete::Candidate;
-use crate::jobs::Jobs;
 use crate::state::ChangeDirError;
 use crate::state::State;
 
@@ -85,8 +84,7 @@ impl Builtin {
 
     pub async fn process(
         &self,
-        env: MutexGuard<'_, State>,
-        jobs: MutexGuard<'_, Jobs>,
+        state: MutexGuard<'_, State>,
         args: Vec<&str>,
         stdout_files: Vec<File>,
         stderr_files: Vec<File>,
@@ -94,12 +92,12 @@ impl Builtin {
         match self {
             Builtin::Echo => process_echo(args, stdout_files).await,
             Builtin::Exit => process_exit(args, stderr_files).await,
-            Builtin::Cd => process_cd(env, args, stderr_files).await,
-            Builtin::Pwd => process_pwd(env, args, stdout_files, stderr_files).await,
-            Builtin::Rehash => process_rehash(env, args, stderr_files).await,
-            Builtin::Complete => process_complete(env, args, stdout_files, stderr_files).await,
-            Builtin::Jobs => process_jobs(jobs, args, stderr_files).await,
-            Builtin::Type => process_type(env, args, stdout_files, stderr_files).await,
+            Builtin::Cd => process_cd(state, args, stderr_files).await,
+            Builtin::Pwd => process_pwd(state, args, stdout_files, stderr_files).await,
+            Builtin::Rehash => process_rehash(state, args, stderr_files).await,
+            Builtin::Complete => process_complete(state, args, stdout_files, stderr_files).await,
+            Builtin::Jobs => process_jobs(state, args, stderr_files).await,
+            Builtin::Type => process_type(state, args, stdout_files, stderr_files).await,
         }
     }
 }
@@ -222,13 +220,13 @@ async fn process_complete(
 }
 
 #[inline]
-async fn process_jobs(mut jobs: MutexGuard<'_, Jobs>, args: Vec<&str>, stderr_files: Vec<File>) {
+async fn process_jobs(mut state: MutexGuard<'_, State>, args: Vec<&str>, stderr_files: Vec<File>) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "jobs: expects no argument");
         return;
     }
-    jobs.log_jobs();
-    jobs.reap_done_jobs(false);
+    state.log_jobs();
+    state.reap_done_jobs(false);
 }
 
 #[inline]
