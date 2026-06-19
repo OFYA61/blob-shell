@@ -1,41 +1,19 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::process::Command;
 
 use crate::autocomplete::Candidate;
+use crate::completer::Completer;
 
 #[derive(Debug)]
 pub enum ChangeDirError {
     DoesNotExist,
 }
 
-#[derive(Debug, Clone)]
-pub struct Completer {
-    pub path: PathBuf,
-}
-
-impl Completer {
-    fn new(path: PathBuf) -> Self {
-        Self { path }
-    }
-
-    pub fn run(&self, args: Vec<&str>, comp_line: &str) -> io::Result<String> {
-        let comp_line = comp_line.trim();
-        let output = Command::new(&self.path)
-            .args(args)
-            .env("COMP_LINE", comp_line)
-            .env("COMP_POINT", comp_line.len().to_string())
-            .output()?;
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-}
-
 #[derive(Debug)]
-pub struct Env {
+pub struct State {
     home: String,
     #[allow(dead_code)]
     paths: Vec<PathBuf>,
@@ -43,7 +21,7 @@ pub struct Env {
     completers: HashMap<String, Completer>,
 }
 
-impl Env {
+impl State {
     pub fn init() -> Self {
         let home = env::var("HOME").expect("Failed to get home environment variable");
         let path_var = env::var("PATH");

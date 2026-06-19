@@ -1,9 +1,10 @@
 mod ast;
 mod autocomplete;
 mod builtin;
-mod env;
+mod completer;
 mod input;
 mod jobs;
+mod state;
 
 use std::process::Stdio;
 use std::sync::Arc;
@@ -16,19 +17,19 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use self::builtin::Builtin;
-use self::env::Env;
 use self::jobs::Job;
 use self::jobs::Jobs;
+use self::state::State;
 
 #[tokio::main]
 async fn main() {
-    let env = Arc::new(Mutex::new(Env::init()));
+    let state = Arc::new(Mutex::new(State::init()));
     let jobs = Arc::new(Mutex::new(Jobs::init()));
 
     loop {
         jobs.lock().await.reap_done_jobs(true);
 
-        let command_raw = match input::get_input(env.lock().await) {
+        let command_raw = match input::get_input(state.lock().await) {
             Ok(input) => input,
             Err(err) => {
                 disable_raw_mode().expect("Failed to disable raw mode");
@@ -74,7 +75,7 @@ async fn main() {
                     if let Some(builtin) = Builtin::from_str(exec) {
                         builtin
                             .process(
-                                env.lock().await,
+                                state.lock().await,
                                 jobs.lock().await,
                                 args,
                                 stdout_files,
@@ -84,7 +85,7 @@ async fn main() {
                         continue;
                     }
 
-                    if let Some(_) = env.lock().await.get_command(&exec) {
+                    if let Some(_) = state.lock().await.get_command(&exec) {
                         let mut child = Command::new(&exec);
                         if args.len() > 0 {
                             child.args(args);

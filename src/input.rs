@@ -15,7 +15,7 @@ use tokio::sync::MutexGuard;
 
 use crate::autocomplete::Candidate;
 use crate::builtin;
-use crate::env::Env;
+use crate::state::State;
 
 #[inline]
 fn ring_bell() -> Result<(), io::Error> {
@@ -65,7 +65,7 @@ impl Candidates {
     }
 }
 
-pub fn get_input(env: MutexGuard<'_, Env>) -> Result<String, io::Error> {
+pub fn get_input(env: MutexGuard<'_, State>) -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
     io::stdout().execute(MoveToColumn(0))?;
     print!("$ ");

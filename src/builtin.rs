@@ -8,9 +8,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::MutexGuard;
 
 use crate::autocomplete::Candidate;
-use crate::env::ChangeDirError;
-use crate::env::Env;
 use crate::jobs::Jobs;
+use crate::state::ChangeDirError;
+use crate::state::State;
 
 macro_rules! write_file {
     ($files:expr, $($arg:tt)*) => {
@@ -85,7 +85,7 @@ impl Builtin {
 
     pub async fn process(
         &self,
-        env: MutexGuard<'_, Env>,
+        env: MutexGuard<'_, State>,
         jobs: MutexGuard<'_, Jobs>,
         args: Vec<&str>,
         stdout_files: Vec<File>,
@@ -120,7 +120,7 @@ async fn process_exit(args: Vec<&str>, stderr_files: Vec<File>) {
 }
 
 #[inline]
-async fn process_cd(mut env: MutexGuard<'_, Env>, args: Vec<&str>, stderr_files: Vec<File>) {
+async fn process_cd(mut env: MutexGuard<'_, State>, args: Vec<&str>, stderr_files: Vec<File>) {
     if let Some(new_dir) = args.first() {
         match env.change_dir(new_dir) {
             Err(err) => match err {
@@ -137,7 +137,7 @@ async fn process_cd(mut env: MutexGuard<'_, Env>, args: Vec<&str>, stderr_files:
 
 #[inline]
 async fn process_pwd(
-    env: MutexGuard<'_, Env>,
+    env: MutexGuard<'_, State>,
     args: Vec<&str>,
     stdout_files: Vec<File>,
     stderr_files: Vec<File>,
@@ -150,7 +150,7 @@ async fn process_pwd(
 }
 
 #[inline]
-async fn process_rehash(mut env: MutexGuard<'_, Env>, args: Vec<&str>, stderr_files: Vec<File>) {
+async fn process_rehash(mut env: MutexGuard<'_, State>, args: Vec<&str>, stderr_files: Vec<File>) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "rehash: expects no argument");
         return;
@@ -185,7 +185,7 @@ struct CompleteArgs {
 
 #[inline]
 async fn process_complete(
-    mut env: MutexGuard<'_, Env>,
+    mut env: MutexGuard<'_, State>,
     args: Vec<&str>,
     stdout_files: Vec<File>,
     stderr_files: Vec<File>,
@@ -233,7 +233,7 @@ async fn process_jobs(mut jobs: MutexGuard<'_, Jobs>, args: Vec<&str>, stderr_fi
 
 #[inline]
 async fn process_type(
-    env: MutexGuard<'_, Env>,
+    env: MutexGuard<'_, State>,
     args: Vec<&str>,
     stdout_files: Vec<File>,
     stderr_files: Vec<File>,
