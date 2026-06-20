@@ -22,7 +22,7 @@ pub struct State {
     programs: HashMap<String, PathBuf>,
     completers: HashMap<String, Completer>,
 
-    pub jobs: BTreeMap<usize, Job>,
+    jobs: BTreeMap<usize, Job>,
 }
 
 impl State {
@@ -141,7 +141,7 @@ impl State {
         let _ = self.completers.remove(program);
     }
 
-    pub fn create_job(&mut self, pid: i32, command: String) -> usize {
+    pub fn create_job(&mut self, pid: u32, command: String) -> usize {
         let mut available_id = 1;
         for id in self.jobs.keys() {
             if *id == available_id {
@@ -223,7 +223,7 @@ impl State {
 #[derive(Debug)]
 pub struct Job {
     pub id: usize,
-    pub pid: i32,
+    pub pid: u32,
     pub command: String,
     pub status: JobStatus,
 }

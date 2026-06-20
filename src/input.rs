@@ -1,5 +1,6 @@
 use std::io;
 use std::io::Write;
+use std::sync::Arc;
 
 use crossterm::ExecutableCommand;
 use crossterm::cursor::MoveLeft;
@@ -11,7 +12,7 @@ use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
 use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
-use tokio::sync::MutexGuard;
+use tokio::sync::Mutex;
 
 use crate::autocomplete::Candidate;
 use crate::builtin;
@@ -65,7 +66,7 @@ impl Candidates {
     }
 }
 
-pub fn get_input(env: MutexGuard<'_, State>) -> Result<String, io::Error> {
+pub async fn get_input(state: Arc<Mutex<State>>) -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
     io::stdout().execute(MoveToColumn(0))?;
     print!("$ ");
@@ -125,11 +126,17 @@ pub fn get_input(env: MutexGuard<'_, State>) -> Result<String, io::Error> {
                                 if input_split.len() == 1 {
                                     auto_complete_candidates
                                         .append(&mut builtin::get_auto_complete_candidates(i));
-                                    auto_complete_candidates
-                                        .append(&mut env.get_auto_complete_program_candidates(i));
+                                    auto_complete_candidates.append(
+                                        &mut state
+                                            .lock()
+                                            .await
+                                            .get_auto_complete_program_candidates(i),
+                                    );
                                 } else {
                                     let mut ran_completer = false;
-                                    if let Some(completer) = env.get_completer(program) {
+                                    if let Some(completer) =
+                                        state.lock().await.get_completer(program)
+                                    {
                                         let completer_args = vec![
                                             program,
                                             i,
@@ -162,7 +169,10 @@ pub fn get_input(env: MutexGuard<'_, State>) -> Result<String, io::Error> {
                                             prefix = i;
                                         }
                                         auto_complete_candidates.append(
-                                            &mut env.get_auto_complete_dir_candidates(dir, prefix),
+                                            &mut state
+                                                .lock()
+                                                .await
+                                                .get_auto_complete_dir_candidates(dir, prefix),
                                         );
                                         chars_to_skip_on_auto_complete = prefix.len();
                                     }

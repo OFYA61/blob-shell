@@ -3,19 +3,14 @@ mod autocomplete;
 mod builtin;
 mod completer;
 mod input;
+mod process;
 mod state;
 
-use std::process::Stdio;
 use std::sync::Arc;
 
 use crossterm::terminal::disable_raw_mode;
-use tokio::io::AsyncBufReadExt;
-use tokio::io::AsyncWriteExt;
-use tokio::io::BufReader;
-use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use self::builtin::Builtin;
 use self::state::State;
 
 #[tokio::main]
@@ -25,7 +20,7 @@ async fn main() {
     loop {
         state.lock().await.reap_done_jobs(true);
 
-        let command_raw = match input::get_input(state.lock().await) {
+        let command_raw = match input::get_input(state.clone()).await {
             Ok(input) => input,
             Err(err) => {
                 disable_raw_mode().expect("Failed to disable raw mode");
@@ -54,7 +49,10 @@ async fn main() {
                     is_background,
                 } => {
                     let exec = exec.process();
-                    let args = args.iter().map(|arg| arg.process()).collect::<Vec<&str>>();
+                    let args = args
+                        .iter()
+                        .map(|arg| arg.process().to_owned())
+                        .collect::<Vec<String>>();
                     let mut stdout_files = Vec::new();
                     let mut stderr_files = Vec::new();
                     for redirect in redirects {
@@ -68,84 +66,24 @@ async fn main() {
                         }
                     }
 
-                    if let Some(builtin) = Builtin::from_str(exec) {
-                        builtin
-                            .process(state.lock().await, args, stdout_files, stderr_files)
-                            .await;
-                        continue;
-                    }
+                    let result = if is_background {
+                        process::run_background(
+                            state.clone(),
+                            exec,
+                            args,
+                            stdout_files,
+                            stderr_files,
+                            command_raw,
+                        )
+                        .await
+                    } else {
+                        process::run(state.clone(), exec, args, stdout_files, stderr_files).await
+                    };
 
-                    let command_maybe = state.lock().await.get_command(&exec);
-                    if let Some(_) = command_maybe {
-                        let mut child = Command::new(&exec);
-                        if args.len() > 0 {
-                            child.args(args);
-                        }
-
-                        if !stdout_files.is_empty() {
-                            child.stdout(Stdio::piped());
-                        }
-                        if !stderr_files.is_empty() {
-                            child.stderr(Stdio::piped());
-                        }
-
-                        let mut child = child.spawn().expect("Failed to execute process");
-                        let pid = child.id().unwrap_or(0) as i32;
-
-                        let child_process_handler =
-                            async move |id: Option<usize>, state: Option<Arc<Mutex<State>>>| {
-                                if let Some(stdout) = child.stdout.take() {
-                                    let mut reader = BufReader::new(stdout).lines();
-                                    while let Ok(Some(line)) = reader.next_line().await {
-                                        let bytes = format!("{}\n", line).as_bytes().to_vec();
-                                        for file in &mut stdout_files {
-                                            file.write_all(&bytes)
-                                                .await
-                                                .expect("Failed to write to file");
-                                            file.flush().await.expect("Failed to flush file");
-                                        }
-                                    }
-                                }
-
-                                if let Some(stderr) = child.stderr.take() {
-                                    let mut reader = BufReader::new(stderr).lines();
-                                    while let Ok(Some(line)) = reader.next_line().await {
-                                        let bytes = format!("{}\n", line).as_bytes().to_vec();
-                                        for file in &mut stderr_files {
-                                            file.write_all(&bytes)
-                                                .await
-                                                .expect("Failed to write to file");
-                                            file.flush().await.expect("Failed to flush file");
-                                        }
-                                    }
-                                }
-
-                                let output = child
-                                    .wait_with_output()
-                                    .await
-                                    .expect("Failed to wait for child with output");
-
-                                if let Some(id) = id
-                                    && let Some(state) = state
-                                {
-                                    state.lock().await.mark_job_done(id);
-                                }
-
-                                output
-                            };
-
-                        if is_background {
-                            let command = command_raw[..command_raw.len() - 1].trim().to_owned();
-                            let id = state.lock().await.create_job(pid, command);
-                            tokio::spawn(child_process_handler(Some(id), Some(Arc::clone(&state))));
-                        } else {
-                            let _ = child_process_handler(None, None).await;
-                        }
-
-                        continue;
-                    }
-
-                    println!("{}: command not found", exec);
+                    match result {
+                        Ok(()) => {}
+                        Err(_) => println!("{}: command not found", exec),
+                    };
                 }
             }
         }

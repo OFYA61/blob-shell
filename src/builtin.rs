@@ -82,10 +82,11 @@ impl Builtin {
         map().get(s).map(|b| b.clone())
     }
 
+    #[inline(always)]
     pub async fn process(
         &self,
         state: MutexGuard<'_, State>,
-        args: Vec<&str>,
+        args: Vec<String>,
         stdout_files: Vec<File>,
         stderr_files: Vec<File>,
     ) {
@@ -102,13 +103,13 @@ impl Builtin {
     }
 }
 
-#[inline]
-async fn process_echo(args: Vec<&str>, stdout_files: Vec<File>) {
+#[inline(always)]
+async fn process_echo(args: Vec<String>, stdout_files: Vec<File>) {
     write_stdout!(stdout_files, "{}", args.join(" "));
 }
 
-#[inline]
-async fn process_exit(args: Vec<&str>, stderr_files: Vec<File>) {
+#[inline(always)]
+async fn process_exit(args: Vec<String>, stderr_files: Vec<File>) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "exit: expects no argument");
         return;
@@ -117,10 +118,10 @@ async fn process_exit(args: Vec<&str>, stderr_files: Vec<File>) {
     std::process::exit(0);
 }
 
-#[inline]
-async fn process_cd(mut env: MutexGuard<'_, State>, args: Vec<&str>, stderr_files: Vec<File>) {
+#[inline(always)]
+async fn process_cd(mut state: MutexGuard<'_, State>, args: Vec<String>, stderr_files: Vec<File>) {
     if let Some(new_dir) = args.first() {
-        match env.change_dir(new_dir) {
+        match state.change_dir(new_dir) {
             Err(err) => match err {
                 ChangeDirError::DoesNotExist => {
                     write_stderr!(stderr_files, "cd: {new_dir}: No such file or directory");
@@ -133,10 +134,10 @@ async fn process_cd(mut env: MutexGuard<'_, State>, args: Vec<&str>, stderr_file
     }
 }
 
-#[inline]
+#[inline(always)]
 async fn process_pwd(
-    env: MutexGuard<'_, State>,
-    args: Vec<&str>,
+    state: MutexGuard<'_, State>,
+    args: Vec<String>,
     stdout_files: Vec<File>,
     stderr_files: Vec<File>,
 ) {
@@ -144,16 +145,20 @@ async fn process_pwd(
         write_stderr!(stderr_files, "pwd: expects no argument");
         return;
     }
-    write_stdout!(stdout_files, "{}", env.get_current_dir_as_string());
+    write_stdout!(stdout_files, "{}", state.get_current_dir_as_string());
 }
 
-#[inline]
-async fn process_rehash(mut env: MutexGuard<'_, State>, args: Vec<&str>, stderr_files: Vec<File>) {
+#[inline(always)]
+async fn process_rehash(
+    mut state: MutexGuard<'_, State>,
+    args: Vec<String>,
+    stderr_files: Vec<File>,
+) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "rehash: expects no argument");
         return;
     }
-    env.reinit();
+    state.reinit();
 }
 
 #[derive(Parser, Debug)]
@@ -181,21 +186,20 @@ struct CompleteArgs {
     extra: Vec<String>,
 }
 
-#[inline]
+#[inline(always)]
 async fn process_complete(
-    mut env: MutexGuard<'_, State>,
-    args: Vec<&str>,
+    mut state: MutexGuard<'_, State>,
+    args: Vec<String>,
     stdout_files: Vec<File>,
     stderr_files: Vec<File>,
 ) {
-    match CompleteArgs::try_parse_from(
-        std::iter::once("complete").chain(args.into_iter().map(|arg| arg)),
-    ) {
+    let args = std::iter::once("complete".to_owned()).chain(args.into_iter());
+    match CompleteArgs::try_parse_from(args) {
         Ok(args) => {
             if let Some(new_completion) = args.completion {
-                env.add_completer(args.extra.first().unwrap().clone(), new_completion);
+                state.add_completer(args.extra.first().unwrap().clone(), new_completion);
             } else if let Some(program) = args.program {
-                if let Some(completion) = env.get_completer(&program) {
+                if let Some(completion) = state.get_completer(&program) {
                     write_stdout!(
                         stdout_files,
                         "complete -C '{}' {}",
@@ -210,7 +214,7 @@ async fn process_complete(
                     );
                 }
             } else if let Some(remove) = args.remove {
-                env.remove_completer(&remove);
+                state.remove_completer(&remove);
             }
         }
         Err(err) => {
@@ -219,8 +223,12 @@ async fn process_complete(
     }
 }
 
-#[inline]
-async fn process_jobs(mut state: MutexGuard<'_, State>, args: Vec<&str>, stderr_files: Vec<File>) {
+#[inline(always)]
+async fn process_jobs(
+    mut state: MutexGuard<'_, State>,
+    args: Vec<String>,
+    stderr_files: Vec<File>,
+) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "jobs: expects no argument");
         return;
@@ -229,17 +237,17 @@ async fn process_jobs(mut state: MutexGuard<'_, State>, args: Vec<&str>, stderr_
     state.reap_done_jobs(false);
 }
 
-#[inline]
+#[inline(always)]
 async fn process_type(
-    env: MutexGuard<'_, State>,
-    args: Vec<&str>,
+    state: MutexGuard<'_, State>,
+    args: Vec<String>,
     stdout_files: Vec<File>,
     stderr_files: Vec<File>,
 ) {
     if let Some(cmd) = args.first() {
         if Builtin::from_str(cmd).is_some() {
             write_stdout!(stdout_files, "{} is a shell builtin", cmd);
-        } else if let Some(command) = env.get_command(cmd) {
+        } else if let Some(command) = state.get_command(cmd) {
             write_stdout!(
                 stdout_files,
                 "{} is {}",
