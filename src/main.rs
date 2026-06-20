@@ -11,6 +11,9 @@ use std::sync::Arc;
 use crossterm::terminal::disable_raw_mode;
 use tokio::sync::Mutex;
 
+use self::ast::ExprCommand;
+use self::ast::ExprKind;
+use self::ast::ExprPipedCommands;
 use self::state::State;
 
 #[tokio::main]
@@ -41,13 +44,12 @@ async fn main() {
 
         // Interpret the AST
         for expr in ast.unwrap() {
-            match expr {
-                ast::Expr::Command {
+            match expr.kind {
+                ExprKind::Command(ExprCommand {
                     exec,
                     args,
                     redirects,
-                    is_background,
-                } => {
+                }) => {
                     let exec = exec.process();
                     let args = args
                         .iter()
@@ -66,7 +68,7 @@ async fn main() {
                         }
                     }
 
-                    let result = if is_background {
+                    let result = if expr.is_background {
                         process::run_background(
                             state.clone(),
                             exec,
@@ -84,6 +86,9 @@ async fn main() {
                         Ok(()) => {}
                         Err(_) => println!("{}: command not found", exec),
                     };
+                }
+                ExprKind::PipedCommands(ExprPipedCommands { commands }) => {
+                    println!("{:#?}", commands);
                 }
             }
         }

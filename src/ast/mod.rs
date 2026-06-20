@@ -14,13 +14,27 @@ pub fn parse(command_raw: &str) -> Result<Vec<Expr>, ()> {
 }
 
 #[derive(Debug)]
-pub enum Expr {
-    Command {
-        exec: ExprArg,
-        args: Vec<ExprArg>,
-        redirects: Vec<ExprRedirect>,
-        is_background: bool,
-    },
+pub struct Expr {
+    pub kind: ExprKind,
+    pub is_background: bool,
+}
+
+#[derive(Debug)]
+pub enum ExprKind {
+    Command(ExprCommand),
+    PipedCommands(ExprPipedCommands),
+}
+
+#[derive(Debug)]
+pub struct ExprCommand {
+    pub exec: ExprArg,
+    pub args: Vec<ExprArg>,
+    pub redirects: Vec<ExprRedirect>,
+}
+
+#[derive(Debug)]
+pub struct ExprPipedCommands {
+    pub commands: Vec<ExprCommand>,
 }
 
 #[derive(Debug)]
@@ -120,7 +134,9 @@ impl ExprRedirect {
 ///
 /// Parsing rules
 /// ```ignore
-/// command  -> expr_arg+ expr_redirect* AMPERSANT? EOF
+/// root -> piped EOF
+/// piped -> command (PIPE command)+ AMPERSANT?
+/// command -> expr_arg* expr_redirect*
 /// expr_arg -> WORD | LITERAL_STRING | FORMAT_STRING
 /// expr_redirect -> (REDIRECT_STDOUT | REDIRECT_STDERR) expr_arg
 /// ```
@@ -141,10 +157,48 @@ impl Parser {
     }
 
     fn parse(&mut self) -> Result<Vec<Expr>, ParserError> {
-        Ok(vec![self.command()?])
+        let piped = self.piped()?;
+        self.consume(TokenKind::EOF)?;
+        Ok(vec![piped])
     }
 
-    fn command(&mut self) -> Result<Expr, ParserError> {
+    fn piped(&mut self) -> Result<Expr, ParserError> {
+        let command = self.command()?;
+
+        if self.match_exact(TokenKind::Ampersant)? {
+            self.consume(TokenKind::Ampersant)?;
+            return Ok(Expr {
+                kind: ExprKind::Command(command),
+                is_background: true,
+            });
+        } else if self.match_exact(TokenKind::Pipe)? {
+            let mut commands: Vec<ExprCommand> = Vec::new();
+            commands.push(command);
+            while self.match_exact(TokenKind::Pipe)? {
+                self.consume(TokenKind::Pipe)?;
+                commands.push(self.command()?);
+            }
+
+            let is_background = if self.match_exact(TokenKind::Ampersant)? {
+                self.consume(TokenKind::Ampersant)?;
+                true
+            } else {
+                false
+            };
+
+            return Ok(Expr {
+                kind: ExprKind::PipedCommands(ExprPipedCommands { commands }),
+                is_background,
+            });
+        }
+
+        Ok(Expr {
+            kind: ExprKind::Command(command),
+            is_background: false,
+        })
+    }
+
+    fn command(&mut self) -> Result<ExprCommand, ParserError> {
         let exec = ExprArg::from_token(self.consume_any(vec![
             TokenKind::Word,
             TokenKind::LiteralString,
@@ -170,20 +224,10 @@ impl Parser {
             redirects.push(self.expr_redirect()?);
         }
 
-        let is_background;
-        if self.match_exact(TokenKind::Ampersant)? {
-            self.consume(TokenKind::Ampersant)?;
-            is_background = true;
-        } else {
-            is_background = false;
-        }
-
-        self.consume(TokenKind::EOF)?;
-        Ok(Expr::Command {
+        Ok(ExprCommand {
             exec,
             args,
             redirects,
-            is_background,
         })
     }
 

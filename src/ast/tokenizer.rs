@@ -1,3 +1,16 @@
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+fn single_char_tokens() -> &'static HashMap<char, TokenKind> {
+    static MAP: OnceLock<HashMap<char, TokenKind>> = OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut map: HashMap<char, TokenKind> = HashMap::new();
+        map.insert('&', TokenKind::Ampersant);
+        map.insert('|', TokenKind::Pipe);
+        map
+    })
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TokenKind {
     Word,
@@ -13,6 +26,7 @@ pub enum TokenKind {
     RedirectStderrAppend,
 
     Ampersant,
+    Pipe,
 
     EOF,
 }
@@ -92,16 +106,11 @@ pub fn tokenize(command_raw: &str) -> Result<Vec<Token>, ()> {
     while index < command_raw.len() {
         let c = get_char!(index);
 
-        if c == '&' {
+        if let Some(token_kind) = single_char_tokens().get(&c) {
             // Treat this as end of command, push the current lexeme to the list of tokens followed
-            // up by an ampersant token
+            // up by the single char token
             push_lexeme_as_token!();
-            tokens.push(Token::new(
-                "&".to_owned(),
-                index,
-                index,
-                TokenKind::Ampersant,
-            ));
+            tokens.push(Token::new(String::from(c), index, index, *token_kind));
         } else if c.is_whitespace() {
             push_lexeme_as_token!();
         } else if c == '\\' {
