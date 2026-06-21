@@ -177,7 +177,7 @@ impl Process {
         .await
     }
 
-    pub async fn init(
+    async fn init(
         state: Arc<Mutex<State>>,
         exec: &str,
         args: Vec<String>,
@@ -327,28 +327,28 @@ impl Process {
         (stdout_files, stderr_files)
     }
 
-    pub fn get_stdin(&mut self) -> Option<ChildStdin> {
+    fn get_stdin(&mut self) -> Option<ChildStdin> {
         match &mut self.kind {
             ProcessKind::Builtin(_) => todo!(),
             ProcessKind::Command(child) => child.stdin.take(),
         }
     }
 
-    pub fn get_stdout(&mut self) -> Option<ChildStdout> {
+    fn get_stdout(&mut self) -> Option<ChildStdout> {
         match &mut self.kind {
             ProcessKind::Builtin(_) => todo!(),
             ProcessKind::Command(child) => child.stdout.take(),
         }
     }
 
-    pub fn get_stderr(&mut self) -> Option<ChildStderr> {
+    fn get_stderr(&mut self) -> Option<ChildStderr> {
         match &mut self.kind {
             ProcessKind::Builtin(_) => todo!(),
             ProcessKind::Command(child) => child.stderr.take(),
         }
     }
 
-    pub async fn wait(&mut self) {
+    async fn wait(&mut self) {
         match &mut self.kind {
             ProcessKind::Builtin(_) => todo!(),
             ProcessKind::Command(child) => child.wait().await.expect("Failed to wait for child"),
