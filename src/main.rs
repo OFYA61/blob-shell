@@ -20,6 +20,7 @@ use self::ast::ExprCommand;
 use self::ast::ExprKind;
 use self::ast::ExprPipedCommands;
 use self::ast::ExprRedirect;
+use self::process::Pipeline;
 use self::process::Process;
 use self::state::State;
 
@@ -86,114 +87,117 @@ async fn main() {
                         continue;
                     }
 
-                    let mut processes: Vec<Process> = Vec::with_capacity(commands.len());
-                    for (i, command) in commands.iter().enumerate() {
-                        let pipe_stdin = if i == 0 { false } else { true };
-                        let pipe_stdout = i != commands.len() - 1
-                            || command
-                                .redirects
-                                .iter()
-                                .any(|redirect| redirect.is_stdout());
-                        let pipe_stderr = command
-                            .redirects
-                            .iter()
-                            .any(|redirect| redirect.is_stderr());
-                        let process = init_process(
-                            state.clone(),
-                            command,
-                            pipe_stdin,
-                            pipe_stdout,
-                            pipe_stderr,
-                        )
-                        .await
-                        // TODO: handle missing processes gracefully
-                        .expect("Failed to init command");
-                        processes.push(process);
-                    }
+                    let mut pipeline = Pipeline::init(state.clone(), &commands).await;
+                    pipeline.run().await;
 
-                    let mut handles: Vec<JoinHandle<()>> = Vec::new();
-                    for i in 0..processes.len() {
-                        let is_last = i == processes.len() - 1;
-
-                        let command = commands.get(i).unwrap();
-                        let (mut stdout_files, mut stderr_files) =
-                            get_redirect_files(&command.redirects).await;
-
-                        let process = processes.get_mut(i).unwrap();
-                        let stdout = process.get_stdout();
-                        let stderr = process.get_stderr();
-
-                        let next_stdin = if !is_last {
-                            processes.get_mut(i + 1).unwrap().get_stdin()
-                        } else {
-                            None
-                        };
-
-                        if let Some(stdout) = stdout {
-                            let stdout_handle = tokio::spawn(async move {
-                                let mut reader = stdout;
-                                let mut next_writer = next_stdin.map(BufWriter::new);
-
-                                let mut buffer = [0u8; 4096];
-                                loop {
-                                    match reader.read(&mut buffer).await {
-                                        Ok(0) => break,
-                                        Ok(n) => {
-                                            let buf = &buffer[..n];
-                                            if let Some(next_writer) = next_writer.as_mut() {
-                                                next_writer
-                                                    .write_all(buf)
-                                                    .await
-                                                    .expect("failed to write to next stdin");
-                                                next_writer
-                                                    .flush()
-                                                    .await
-                                                    .expect("Failed to flush next writer");
-                                            }
-                                            for file in &mut stdout_files {
-                                                file.write_all(buf)
-                                                    .await
-                                                    .expect("Failed to write to file");
-                                                file.flush().await.expect("Failed to flush file");
-                                            }
-                                        }
-                                        Err(_) => break,
-                                    }
-                                }
-                            });
-                            handles.push(stdout_handle);
-                        }
-
-                        if let Some(stderr) = stderr {
-                            let stderr_handle = tokio::spawn(async move {
-                                let mut reader = stderr;
-                                let mut buffer = [0u8; 4096];
-                                loop {
-                                    match reader.read(&mut buffer).await {
-                                        Ok(0) => break,
-                                        Ok(n) => {
-                                            let buf = &buffer[..n];
-                                            for file in &mut stderr_files {
-                                                file.write_all(buf)
-                                                    .await
-                                                    .expect("Failed to write to file");
-                                            }
-                                        }
-                                        Err(_) => break,
-                                    }
-                                }
-                            });
-                            handles.push(stderr_handle);
-                        }
-                    }
-
-                    for process in &mut processes {
-                        process.wait().await;
-                    }
-
-                    for handle in handles {
-                        handle.await.expect("Failed to join pipe handle");
-                    }
+                    // let mut processes: Vec<Process> = Vec::with_capacity(commands.len());
+                    // for (i, command) in commands.iter().enumerate() {
+                    //     let pipe_stdin = if i == 0 { false } else { true };
+                    //     let pipe_stdout = i != commands.len() - 1
+                    //         || command
+                    //             .redirects
+                    //             .iter()
+                    //             .any(|redirect| redirect.is_stdout());
+                    //     let pipe_stderr = command
+                    //         .redirects
+                    //         .iter()
+                    //         .any(|redirect| redirect.is_stderr());
+                    //     let process = init_process(
+                    //         state.clone(),
+                    //         command,
+                    //         pipe_stdin,
+                    //         pipe_stdout,
+                    //         pipe_stderr,
+                    //     )
+                    //     .await
+                    //     // TODO: handle missing processes gracefully
+                    //     .expect("Failed to init command");
+                    //     processes.push(process);
+                    // }
+                    //
+                    // let mut handles: Vec<JoinHandle<()>> = Vec::new();
+                    // for i in 0..processes.len() {
+                    //     let is_last = i == processes.len() - 1;
+                    //
+                    //     let command = commands.get(i).unwrap();
+                    //     let (mut stdout_files, mut stderr_files) =
+                    //         get_redirect_files(&command.redirects).await;
+                    //
+                    //     let process = processes.get_mut(i).unwrap();
+                    //     let stdout = process.get_stdout();
+                    //     let stderr = process.get_stderr();
+                    //
+                    //     let next_stdin = if !is_last {
+                    //         processes.get_mut(i + 1).unwrap().get_stdin()
+                    //     } else {
+                    //         None
+                    //     };
+                    //
+                    //     if let Some(stdout) = stdout {
+                    //         let stdout_handle = tokio::spawn(async move {
+                    //             let mut reader = stdout;
+                    //             let mut next_writer = next_stdin.map(BufWriter::new);
+                    //
+                    //             let mut buffer = [0u8; 4096];
+                    //             loop {
+                    //                 match reader.read(&mut buffer).await {
+                    //                     Ok(0) => break,
+                    //                     Ok(n) => {
+                    //                         let buf = &buffer[..n];
+                    //                         if let Some(next_writer) = next_writer.as_mut() {
+                    //                             next_writer
+                    //                                 .write_all(buf)
+                    //                                 .await
+                    //                                 .expect("failed to write to next stdin");
+                    //                             next_writer
+                    //                                 .flush()
+                    //                                 .await
+                    //                                 .expect("Failed to flush next writer");
+                    //                         }
+                    //                         for file in &mut stdout_files {
+                    //                             file.write_all(buf)
+                    //                                 .await
+                    //                                 .expect("Failed to write to file");
+                    //                             file.flush().await.expect("Failed to flush file");
+                    //                         }
+                    //                     }
+                    //                     Err(_) => break,
+                    //                 }
+                    //             }
+                    //         });
+                    //         handles.push(stdout_handle);
+                    //     }
+                    //
+                    //     if let Some(stderr) = stderr {
+                    //         let stderr_handle = tokio::spawn(async move {
+                    //             let mut reader = stderr;
+                    //             let mut buffer = [0u8; 4096];
+                    //             loop {
+                    //                 match reader.read(&mut buffer).await {
+                    //                     Ok(0) => break,
+                    //                     Ok(n) => {
+                    //                         let buf = &buffer[..n];
+                    //                         for file in &mut stderr_files {
+                    //                             file.write_all(buf)
+                    //                                 .await
+                    //                                 .expect("Failed to write to file");
+                    //                         }
+                    //                     }
+                    //                     Err(_) => break,
+                    //                 }
+                    //             }
+                    //         });
+                    //         handles.push(stderr_handle);
+                    //     }
+                    // }
+                    //
+                    // for process in &mut processes {
+                    //     process.wait().await;
+                    // }
+                    //
+                    // for handle in handles {
+                    //     handle.await.expect("Failed to join pipe handle");
+                    // }
                 }
             }
         }
