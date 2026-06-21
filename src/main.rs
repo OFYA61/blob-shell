@@ -78,8 +78,8 @@ async fn main() {
                                 process.run(None, stdout_files, stderr_files).await;
                             }
                         }
-                        Err(_) => {
-                            println!("{}: command not found", command.exec.process());
+                        Err(err) => {
+                            println!("{}", err);
                             continue;
                         }
                     }
@@ -89,8 +89,15 @@ async fn main() {
                         continue;
                     }
 
-                    let mut pipeline = Pipeline::init(state.clone(), &commands).await;
-                    pipeline.run().await;
+                    match Pipeline::init(state.clone(), &commands).await {
+                        Ok(mut pipeline) => {
+                            pipeline.run().await;
+                        }
+                        Err(err) => {
+                            println!("{}", err);
+                            continue;
+                        }
+                    }
                 }
             }
         }

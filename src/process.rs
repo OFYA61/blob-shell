@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::fs::File;
@@ -25,7 +26,10 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub async fn init(state: Arc<Mutex<State>>, commands: &Vec<ExprCommand>) -> Self {
+    pub async fn init(
+        state: Arc<Mutex<State>>,
+        commands: &Vec<ExprCommand>,
+    ) -> Result<Self, ProcessError> {
         let mut processes: Vec<Process> = Vec::with_capacity(commands.len());
         for (i, command) in commands.iter().enumerate() {
             let pipe_stdin = if i == 0 { false } else { true };
@@ -45,12 +49,15 @@ impl Pipeline {
                 pipe_stdout,
                 pipe_stderr,
             )
-            .await
-            .expect("Failed to init process");
-            processes.push(process);
+            .await;
+            if let Err(err) = process {
+                // TODO: Validate that all commands are valid before spawning the processes
+                return Err(err);
+            }
+            processes.push(process.unwrap());
         }
 
-        Self { processes }
+        Ok(Self { processes })
     }
 
     pub async fn run(&mut self) {
@@ -212,7 +219,10 @@ impl Process {
             pid = child.id().unwrap_or(0);
             kind = ProcessKind::Command(child);
         } else {
-            return Err(ProcessError::ProcessNotFound);
+            return Err(ProcessError::ProcessNotFound(format!(
+                "{}: command not found",
+                exec
+            )));
         }
 
         Ok(Self {
@@ -358,5 +368,13 @@ impl Process {
 
 #[derive(Debug)]
 pub enum ProcessError {
-    ProcessNotFound,
+    ProcessNotFound(String),
+}
+
+impl Display for ProcessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProcessError::ProcessNotFound(msg) => f.write_str(msg),
+        }
+    }
 }
