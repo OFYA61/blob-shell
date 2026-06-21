@@ -69,10 +69,10 @@ async fn main() {
                     let mut process = process.unwrap();
                     if expr.is_background {
                         let state = state.clone();
-                        let id = state
-                            .lock()
-                            .await
-                            .create_job(process.pid, command_raw.to_owned());
+                        let mut command = String::from(command_raw);
+                        command.remove(command.rfind("&").unwrap());
+                        let command = command.trim().to_owned();
+                        let id = state.lock().await.create_job(process.pid, command);
                         tokio::spawn(async move {
                             process.run(None, stdout_files, stderr_files).await;
                             state.lock().await.mark_job_done(id);

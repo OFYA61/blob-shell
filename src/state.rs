@@ -172,13 +172,13 @@ impl State {
 
     pub fn log_jobs(&self) {
         for (_, job) in self.jobs.iter().rev().skip(2).rev() {
-            println!("[{}]  {} {}", job.id, job.status, job.command);
+            println!("[{}]   {} {}", job.id, job.status, job.command);
         }
         if let Some((_, job)) = self.jobs.iter().rev().nth(1) {
-            println!("[{}]- {} {}", job.id, job.status, job.command);
+            println!("[{}]-  {} {}", job.id, job.status, job.command);
         }
         if let Some((_, job)) = self.jobs.iter().rev().next() {
-            println!("[{}]+ {} {}", job.id, job.status, job.command);
+            println!("[{}]+  {} {}", job.id, job.status, job.command);
         }
     }
 
