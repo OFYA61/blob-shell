@@ -22,7 +22,6 @@ use crate::state::State;
 #[derive(Debug)]
 pub struct Pipeline {
     processes: Vec<Process>,
-    redirects: Vec<Vec<ExprRedirect>>,
 }
 
 impl Pipeline {
@@ -39,25 +38,19 @@ impl Pipeline {
                 .redirects
                 .iter()
                 .any(|redirect| redirect.is_stderr());
-            let process =
-                init_process(state.clone(), command, pipe_stdin, pipe_stdout, pipe_stderr)
-                    .await
-                    // TODO: handle missing processes gracefully
-                    .expect("Failed to init command");
+            let process = Process::init_from_expr_command(
+                state.clone(),
+                &command,
+                pipe_stdin,
+                pipe_stdout,
+                pipe_stderr,
+            )
+            .await
+            .expect("Failed to init process");
             processes.push(process);
         }
 
-        let redirects: Vec<Vec<ExprRedirect>> = commands
-            .iter()
-            .map(|command| command.redirects.clone())
-            .collect();
-
-        assert_eq!(processes.len(), redirects.len());
-
-        Self {
-            processes,
-            redirects,
-        }
+        Self { processes }
     }
 
     pub async fn run(&mut self) {
@@ -65,12 +58,11 @@ impl Pipeline {
         for i in 0..self.processes.len() {
             let is_last = i == self.processes.len() - 1;
 
-            let (mut stdout_files, mut stderr_files) =
-                get_redirect_files(self.redirects.get(i).unwrap()).await;
-
             let process = self.processes.get_mut(i).unwrap();
             let stdout = process.get_stdout();
             let stderr = process.get_stderr();
+
+            let (mut stdout_files, mut stderr_files) = process.get_redirect_files().await;
 
             let next_stdin = if !is_last {
                 self.processes.get_mut(i + 1).unwrap().get_stdin()
@@ -142,47 +134,6 @@ impl Pipeline {
     }
 }
 
-async fn get_redirect_files(redirects: &Vec<ExprRedirect>) -> (Vec<File>, Vec<File>) {
-    let mut stdout_files = Vec::new();
-    let mut stderr_files = Vec::new();
-    for redirect in redirects {
-        let file = redirect.open_file().await;
-        if redirect.is_stdout() {
-            stdout_files.push(file);
-        } else if redirect.is_stderr() {
-            stderr_files.push(file);
-        } else {
-            unreachable!();
-        }
-    }
-    (stdout_files, stderr_files)
-}
-
-async fn init_process(
-    state: Arc<Mutex<State>>,
-    command: &ExprCommand,
-    pipe_stdin: bool,
-    pipe_stdout: bool,
-    pipe_stderr: bool,
-) -> Option<Process> {
-    let ExprCommand { exec, args, .. } = command;
-
-    let exec = exec.process();
-    let args = args
-        .iter()
-        .map(|arg| arg.process().to_owned())
-        .collect::<Vec<String>>();
-    let process_result =
-        Process::init(state, exec, args, pipe_stdin, pipe_stdout, pipe_stderr).await;
-
-    if let Err(_) = process_result {
-        println!("{}: command not found", exec);
-        return None;
-    }
-
-    Some(process_result.unwrap())
-}
-
 #[derive(Debug)]
 enum ProcessKind {
     Builtin(Builtin),
@@ -194,15 +145,43 @@ pub struct Process {
     state: Arc<Mutex<State>>,
     pub pid: u32,
     kind: ProcessKind,
+    redirects: Vec<ExprRedirect>,
 
     args: Vec<String>,
 }
 
 impl Process {
+    pub async fn init_from_expr_command(
+        state: Arc<Mutex<State>>,
+        command: &ExprCommand,
+        pipe_stdin: bool,
+        pipe_stdout: bool,
+        pipe_stderr: bool,
+    ) -> Result<Self, ProcessError> {
+        let ExprCommand { exec, args, .. } = command;
+
+        let exec = exec.process();
+        let args = args
+            .iter()
+            .map(|arg| arg.process().to_owned())
+            .collect::<Vec<String>>();
+        Process::init(
+            state,
+            exec,
+            args,
+            command.redirects.clone(),
+            pipe_stdin,
+            pipe_stdout,
+            pipe_stderr,
+        )
+        .await
+    }
+
     pub async fn init(
         state: Arc<Mutex<State>>,
         exec: &str,
         args: Vec<String>,
+        redirects: Vec<ExprRedirect>,
         pipe_stdin: bool,
         pipe_stdout: bool,
         pipe_stderr: bool,
@@ -240,6 +219,7 @@ impl Process {
             state,
             pid,
             kind,
+            redirects,
             args,
         })
     }
@@ -329,6 +309,22 @@ impl Process {
                 }
             }
         };
+    }
+
+    pub async fn get_redirect_files(&self) -> (Vec<File>, Vec<File>) {
+        let mut stdout_files = Vec::new();
+        let mut stderr_files = Vec::new();
+        for redirect in &self.redirects {
+            let file = redirect.open_file().await;
+            if redirect.is_stdout() {
+                stdout_files.push(file);
+            } else if redirect.is_stderr() {
+                stderr_files.push(file);
+            } else {
+                unreachable!();
+            }
+        }
+        (stdout_files, stderr_files)
     }
 
     pub fn get_stdin(&mut self) -> Option<ChildStdin> {
