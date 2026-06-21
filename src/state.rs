@@ -201,7 +201,7 @@ impl State {
                         ' '
                     };
 
-                    println!("[{}]{} {} {}", job.id, marker, job.status, job.command);
+                    println!("[{}]{}  {} {}", job.id, marker, job.status, job.command);
                 }
                 *id
             })
