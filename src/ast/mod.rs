@@ -37,7 +37,7 @@ pub struct ExprPipedCommands {
     pub commands: Vec<ExprCommand>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprArg {
     Word(String),
     Literal(String),
@@ -63,7 +63,7 @@ impl ExprArg {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum ExprRedirectKind {
     Stdout,
     StdoutAppend,
@@ -86,7 +86,7 @@ impl ExprRedirectKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExprRedirect {
     kind: ExprRedirectKind,
     arg: ExprArg,

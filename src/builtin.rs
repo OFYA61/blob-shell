@@ -13,7 +13,7 @@ use crate::state::State;
 
 macro_rules! write_file {
     ($files:expr, $($arg:tt)*) => {
-        for mut file in $files {
+        for file in &mut $files {
             let _ = file.write_all(&format!($($arg)*).as_bytes()).await;
             let _ = file.write("\n".as_bytes()).await;
             file.flush().await.expect("Failed to flush file");
@@ -86,7 +86,7 @@ impl Builtin {
     pub async fn process(
         &self,
         state: MutexGuard<'_, State>,
-        args: Vec<String>,
+        args: &Vec<String>,
         stdout_files: Vec<File>,
         stderr_files: Vec<File>,
     ) {
@@ -104,12 +104,12 @@ impl Builtin {
 }
 
 #[inline(always)]
-async fn process_echo(args: Vec<String>, stdout_files: Vec<File>) {
+async fn process_echo(args: &Vec<String>, mut stdout_files: Vec<File>) {
     write_stdout!(stdout_files, "{}", args.join(" "));
 }
 
 #[inline(always)]
-async fn process_exit(args: Vec<String>, stderr_files: Vec<File>) {
+async fn process_exit(args: &Vec<String>, mut stderr_files: Vec<File>) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "exit: expects no argument");
         return;
@@ -119,7 +119,11 @@ async fn process_exit(args: Vec<String>, stderr_files: Vec<File>) {
 }
 
 #[inline(always)]
-async fn process_cd(mut state: MutexGuard<'_, State>, args: Vec<String>, stderr_files: Vec<File>) {
+async fn process_cd(
+    mut state: MutexGuard<'_, State>,
+    args: &Vec<String>,
+    mut stderr_files: Vec<File>,
+) {
     if let Some(new_dir) = args.first() {
         match state.change_dir(new_dir) {
             Err(err) => match err {
@@ -137,9 +141,9 @@ async fn process_cd(mut state: MutexGuard<'_, State>, args: Vec<String>, stderr_
 #[inline(always)]
 async fn process_pwd(
     state: MutexGuard<'_, State>,
-    args: Vec<String>,
-    stdout_files: Vec<File>,
-    stderr_files: Vec<File>,
+    args: &Vec<String>,
+    mut stdout_files: Vec<File>,
+    mut stderr_files: Vec<File>,
 ) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "pwd: expects no argument");
@@ -151,8 +155,8 @@ async fn process_pwd(
 #[inline(always)]
 async fn process_rehash(
     mut state: MutexGuard<'_, State>,
-    args: Vec<String>,
-    stderr_files: Vec<File>,
+    args: &Vec<String>,
+    mut stderr_files: Vec<File>,
 ) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "rehash: expects no argument");
@@ -189,12 +193,13 @@ struct CompleteArgs {
 #[inline(always)]
 async fn process_complete(
     mut state: MutexGuard<'_, State>,
-    args: Vec<String>,
-    stdout_files: Vec<File>,
-    stderr_files: Vec<File>,
+    args: &Vec<String>,
+    mut stdout_files: Vec<File>,
+    mut stderr_files: Vec<File>,
 ) {
-    let args = std::iter::once("complete".to_owned()).chain(args.into_iter());
-    match CompleteArgs::try_parse_from(args) {
+    match CompleteArgs::try_parse_from(
+        std::iter::once("complete").chain(args.into_iter().map(|s| s.as_str())),
+    ) {
         Ok(args) => {
             if let Some(new_completion) = args.completion {
                 state.add_completer(args.extra.first().unwrap().clone(), new_completion);
@@ -226,8 +231,8 @@ async fn process_complete(
 #[inline(always)]
 async fn process_jobs(
     mut state: MutexGuard<'_, State>,
-    args: Vec<String>,
-    stderr_files: Vec<File>,
+    args: &Vec<String>,
+    mut stderr_files: Vec<File>,
 ) {
     if !args.is_empty() {
         write_stderr!(stderr_files, "jobs: expects no argument");
@@ -240,9 +245,9 @@ async fn process_jobs(
 #[inline(always)]
 async fn process_type(
     state: MutexGuard<'_, State>,
-    args: Vec<String>,
-    stdout_files: Vec<File>,
-    stderr_files: Vec<File>,
+    args: &Vec<String>,
+    mut stdout_files: Vec<File>,
+    mut stderr_files: Vec<File>,
 ) {
     if let Some(cmd) = args.first() {
         if Builtin::from_str(cmd).is_some() {
