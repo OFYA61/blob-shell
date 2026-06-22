@@ -108,7 +108,9 @@ async fn process_cd<E: AsyncWriteExt + Unpin>(
             Err(err) => match err {
                 ChangeDirError::DoesNotExist => {
                     let _ = stderr
-                        .write_all("cd: {new_dir}: No such file or directory\n".as_bytes())
+                        .write_all(
+                            format!("cd: {}: No such file or directory\n", new_dir).as_bytes(),
+                        )
                         .await;
                 }
             },
