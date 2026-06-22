@@ -1,16 +1,11 @@
 use std::fmt::Display;
 use std::process::Stdio;
 use std::sync::Arc;
+
 use tokio::fs::File;
-use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
-use tokio::io::BufReader;
-use tokio::io::BufWriter;
-use tokio::process::Child;
-use tokio::process::ChildStderr;
-use tokio::process::ChildStdin;
-use tokio::process::ChildStdout;
+use tokio::io::DuplexStream;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -21,348 +16,153 @@ use crate::builtin::Builtin;
 use crate::state::State;
 
 #[derive(Debug)]
-pub struct Pipeline {
-    processes: Vec<Process>,
-}
-
-impl Pipeline {
-    pub async fn init(
-        state: Arc<Mutex<State>>,
-        commands: &Vec<ExprCommand>,
-    ) -> Result<Self, ProcessError> {
-        let mut processes: Vec<Process> = Vec::with_capacity(commands.len());
-        for (i, command) in commands.iter().enumerate() {
-            let pipe_stdin = if i == 0 { false } else { true };
-            let pipe_stdout = i != commands.len() - 1
-                || command
-                    .redirects
-                    .iter()
-                    .any(|redirect| redirect.is_stdout());
-            let pipe_stderr = command
-                .redirects
-                .iter()
-                .any(|redirect| redirect.is_stderr());
-            let process = Process::init_from_expr_command(
-                state.clone(),
-                &command,
-                pipe_stdin,
-                pipe_stdout,
-                pipe_stderr,
-            )
-            .await;
-            if let Err(err) = process {
-                // TODO: Validate that all commands are valid before spawning the processes
-                return Err(err);
-            }
-            processes.push(process.unwrap());
-        }
-
-        Ok(Self { processes })
-    }
-
-    pub async fn run(&mut self) {
-        let mut handles: Vec<JoinHandle<()>> = Vec::new();
-        for i in 0..self.processes.len() {
-            let is_last = i == self.processes.len() - 1;
-
-            let process = self.processes.get_mut(i).unwrap();
-            let stdout = process.get_stdout();
-            let stderr = process.get_stderr();
-
-            let (mut stdout_files, mut stderr_files) = process.get_redirect_files().await;
-
-            let next_stdin = if !is_last {
-                self.processes.get_mut(i + 1).unwrap().get_stdin()
-            } else {
-                None
-            };
-
-            if let Some(stdout) = stdout {
-                let stdout_handle = tokio::spawn(async move {
-                    let mut reader = stdout;
-                    let mut next_writer = next_stdin.map(BufWriter::new);
-
-                    let mut buffer = [0u8; 4096];
-                    loop {
-                        match reader.read(&mut buffer).await {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                let buf = &buffer[..n];
-                                if let Some(next_writer) = next_writer.as_mut() {
-                                    next_writer
-                                        .write_all(buf)
-                                        .await
-                                        .expect("failed to write to next stdin");
-                                    next_writer
-                                        .flush()
-                                        .await
-                                        .expect("Failed to flush next writer");
-                                }
-                                for file in &mut stdout_files {
-                                    file.write_all(buf).await.expect("Failed to write to file");
-                                    file.flush().await.expect("Failed to flush file");
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
-                });
-                handles.push(stdout_handle);
-            }
-
-            if let Some(stderr) = stderr {
-                let stderr_handle = tokio::spawn(async move {
-                    let mut reader = stderr;
-                    let mut buffer = [0u8; 4096];
-                    loop {
-                        match reader.read(&mut buffer).await {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                let buf = &buffer[..n];
-                                for file in &mut stderr_files {
-                                    file.write_all(buf).await.expect("Failed to write to file");
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
-                });
-                handles.push(stderr_handle);
-            }
-        }
-
-        for process in &mut self.processes {
-            process.wait().await;
-        }
-
-        for handle in handles {
-            handle.await.expect("Failed to join pipe handle");
-        }
-    }
-}
-
-#[derive(Debug)]
-enum ProcessKind {
+pub enum ProcessKind {
     Builtin(Builtin),
-    Command(Child),
+    External(String),
 }
 
 #[derive(Debug)]
 pub struct Process {
-    state: Arc<Mutex<State>>,
-    pub pid: u32,
     kind: ProcessKind,
+    args: Vec<String>,
     redirects: Vec<ExprRedirect>,
 
-    args: Vec<String>,
+    stdin_rx: Option<DuplexStream>,
+    stdout_tx: Option<DuplexStream>,
+    stderr_tx: Option<DuplexStream>,
 }
 
 impl Process {
-    pub async fn init_from_expr_command(
+    pub async fn init(
         state: Arc<Mutex<State>>,
         command: &ExprCommand,
-        pipe_stdin: bool,
-        pipe_stdout: bool,
-        pipe_stderr: bool,
     ) -> Result<Self, ProcessError> {
-        let ExprCommand { exec, args, .. } = command;
+        let exec_str = command.exec.process();
 
-        let exec = exec.process();
-        let args = args
-            .iter()
-            .map(|arg| arg.process().to_owned())
-            .collect::<Vec<String>>();
-        Process::init(
-            state,
-            exec,
-            args,
-            command.redirects.clone(),
-            pipe_stdin,
-            pipe_stdout,
-            pipe_stderr,
-        )
-        .await
-    }
-
-    async fn init(
-        state: Arc<Mutex<State>>,
-        exec: &str,
-        args: Vec<String>,
-        redirects: Vec<ExprRedirect>,
-        pipe_stdin: bool,
-        pipe_stdout: bool,
-        pipe_stderr: bool,
-    ) -> Result<Self, ProcessError> {
-        let pid: u32;
-        let kind: ProcessKind;
-        if let Some(builtin) = Builtin::from_str(exec) {
-            pid = std::process::id();
-            kind = ProcessKind::Builtin(builtin);
-        } else if let Some(_) = state.lock().await.get_command(exec) {
-            let mut child = Command::new(&exec);
-            if args.len() > 0 {
-                child.args(&args);
-            }
-
-            if pipe_stdin {
-                child.stdin(Stdio::piped());
-            }
-            if pipe_stdout {
-                child.stdout(Stdio::piped());
-            }
-            if pipe_stderr {
-                child.stderr(Stdio::piped());
-            }
-
-            let child = child.spawn().expect("Failed to execute process");
-
-            pid = child.id().unwrap_or(0);
-            kind = ProcessKind::Command(child);
+        let kind = if let Some(builtin) = Builtin::from_str(exec_str) {
+            ProcessKind::Builtin(builtin)
+        } else if state.lock().await.get_command(exec_str).is_some() {
+            ProcessKind::External(exec_str.to_owned())
         } else {
             return Err(ProcessError::ProcessNotFound(format!(
                 "{}: command not found",
-                exec
+                exec_str
             )));
-        }
+        };
 
         Ok(Self {
-            state,
-            pid,
             kind,
-            redirects,
-            args,
+            args: command
+                .args
+                .iter()
+                .map(|arg| arg.process().to_owned())
+                .collect(),
+            redirects: command.redirects.clone(),
+            stdin_rx: None,
+            stdout_tx: None,
+            stderr_tx: None,
         })
     }
 
-    pub async fn run(
-        &mut self,
-        in_stream: Option<ChildStdout>,
-        mut stdout_files: Vec<File>,
-        mut stderr_files: Vec<File>,
-    ) {
-        match &mut self.kind {
+    pub async fn run(&mut self, state: Arc<Mutex<State>>) {
+        let mut tasks: Vec<JoinHandle<()>> = Vec::new();
+
+        // Setup I/O and file redirection
+        let (stdout_rx, mut stdout_tx) = tokio::io::duplex(8192);
+        let (stderr_rx, mut stderr_tx) = tokio::io::duplex(8192);
+
+        let (stdout_files, stderr_files) = open_redirect_files(&self.redirects).await;
+
+        tasks.push(tokio::spawn(async move {
+            let mut reader = stdout_rx;
+            let mut files = stdout_files;
+            let mut buffer = [0u8; 4096];
+
+            while let Ok(n) = reader.read(&mut buffer).await {
+                if n == 0 {
+                    break;
+                }
+                let chunk = &buffer[..n];
+
+                for file in &mut files {
+                    let _ = file.write_all(chunk).await;
+                    let _ = file.flush().await;
+                }
+
+                if files.is_empty() {
+                    let mut stdout = tokio::io::stdout();
+                    let _ = stdout.write_all(chunk).await;
+                    let _ = stdout.flush().await;
+                }
+            }
+        }));
+
+        tasks.push(tokio::spawn(async move {
+            let mut reader = stderr_rx;
+            let mut files = stderr_files;
+            let mut buffer = [0u8; 4096];
+
+            while let Ok(n) = reader.read(&mut buffer).await {
+                if n == 0 {
+                    break;
+                }
+                let chunk = &buffer[..n];
+
+                for file in &mut files {
+                    let _ = file.write_all(chunk).await;
+                    let _ = file.flush().await;
+                }
+                if files.is_empty() {
+                    let mut stderr = tokio::io::stderr();
+                    let _ = stderr.write_all(chunk).await;
+                    let _ = stderr.flush().await;
+                }
+            }
+        }));
+
+        // Execute
+        match &self.kind {
             ProcessKind::Builtin(builtin) => {
+                let state = state.lock().await;
+
                 builtin
                     .process(
-                        self.state.lock().await,
+                        state,
                         &self.args,
-                        stdout_files,
-                        stderr_files,
+                        None::<tokio::io::Stdin>,
+                        stdout_tx,
+                        stderr_tx,
                     )
                     .await;
             }
-            ProcessKind::Command(child) => {
-                let stdin = child.stdin.take();
-                let stdout = child.stdout.take();
-                let stderr = child.stderr.take();
+            ProcessKind::External(exec) => {
+                let mut cmd = Command::new(exec);
+                cmd.args(&self.args);
+                cmd.stdin(Stdio::inherit());
+                cmd.stdout(Stdio::piped());
+                cmd.stderr(Stdio::piped());
 
-                let stdout_handle: Option<JoinHandle<()>> = if let Some(stdout) = stdout {
-                    Some(tokio::spawn(async move {
-                        if let Some(in_stream) = in_stream
-                            && let Some(stdin) = stdin
-                        {
-                            println!("Piping output");
-                            let mut reader = BufReader::new(in_stream).lines();
-                            let mut writer = BufWriter::new(stdin);
-                            while let Ok(Some(line)) = reader.next_line().await {
-                                let bytes = format!("{}\n", line).as_bytes().to_vec();
-                                writer
-                                    .write_all(&bytes)
-                                    .await
-                                    .expect("Failed to write to stdin");
-                            }
-                        }
-
-                        let mut reader = BufReader::new(stdout).lines();
-
-                        while let Ok(Some(line)) = reader.next_line().await {
-                            let bytes = format!("{}\n", line).as_bytes().to_vec();
-                            for file in &mut stdout_files {
-                                file.write_all(&bytes)
-                                    .await
-                                    .expect("Failed to write to file");
-                                file.flush().await.expect("Failed to flush file");
-                            }
-                        }
-                    }))
-                } else {
-                    None
-                };
-
-                let stderr_handle: Option<JoinHandle<()>> = if let Some(stderr) = stderr {
-                    Some(tokio::spawn(async move {
-                        let mut reader = BufReader::new(stderr).lines();
-
-                        while let Ok(Some(line)) = reader.next_line().await {
-                            let bytes = format!("{}\n", line).as_bytes().to_vec();
-                            for file in &mut stderr_files {
-                                file.write_all(&bytes)
-                                    .await
-                                    .expect("Failed to write to file");
-                                file.flush().await.expect("Failed to flush file");
-                            }
-                        }
-                    }))
-                } else {
-                    None
-                };
-
-                child
-                    .wait()
-                    .await
-                    .expect("Failed to wait for child with output");
-                if let Some(handle) = stdout_handle {
-                    handle.await.expect("Failed to join stdout handle");
+                let mut child = cmd.spawn().expect("Failed to execute process");
+                if let Some(mut child_out) = child.stdout.take() {
+                    tasks.push(tokio::spawn(async move {
+                        let _ = tokio::io::copy(&mut child_out, &mut stdout_tx).await;
+                    }));
                 }
-                if let Some(handle) = stderr_handle {
-                    handle.await.expect("Failed to join stderr handle");
+
+                if let Some(mut child_err) = child.stderr.take() {
+                    tasks.push(tokio::spawn(async move {
+                        let _ = tokio::io::copy(&mut child_err, &mut stderr_tx).await;
+                    }));
                 }
+
+                let _ = child.wait().await;
             }
         };
-    }
 
-    pub async fn get_redirect_files(&self) -> (Vec<File>, Vec<File>) {
-        let mut stdout_files = Vec::new();
-        let mut stderr_files = Vec::new();
-        for redirect in &self.redirects {
-            let file = redirect.open_file().await;
-            if redirect.is_stdout() {
-                stdout_files.push(file);
-            } else if redirect.is_stderr() {
-                stderr_files.push(file);
-            } else {
-                unreachable!();
-            }
+        // Reap
+        for task in tasks {
+            let _ = task.await;
         }
-        (stdout_files, stderr_files)
-    }
-
-    fn get_stdin(&mut self) -> Option<ChildStdin> {
-        match &mut self.kind {
-            ProcessKind::Builtin(_) => todo!(),
-            ProcessKind::Command(child) => child.stdin.take(),
-        }
-    }
-
-    fn get_stdout(&mut self) -> Option<ChildStdout> {
-        match &mut self.kind {
-            ProcessKind::Builtin(_) => todo!(),
-            ProcessKind::Command(child) => child.stdout.take(),
-        }
-    }
-
-    fn get_stderr(&mut self) -> Option<ChildStderr> {
-        match &mut self.kind {
-            ProcessKind::Builtin(_) => todo!(),
-            ProcessKind::Command(child) => child.stderr.take(),
-        }
-    }
-
-    async fn wait(&mut self) {
-        match &mut self.kind {
-            ProcessKind::Builtin(_) => todo!(),
-            ProcessKind::Command(child) => child.wait().await.expect("Failed to wait for child"),
-        };
     }
 }
 
@@ -377,4 +177,183 @@ impl Display for ProcessError {
             ProcessError::ProcessNotFound(msg) => f.write_str(msg),
         }
     }
+}
+
+pub async fn run_pipeline(
+    state: Arc<Mutex<State>>,
+    commands: &Vec<ExprCommand>,
+) -> Result<(), ProcessError> {
+    let len = commands.len();
+    if len == 0 {
+        return Ok(());
+    }
+
+    let mut processes = Vec::with_capacity(commands.len());
+    for command in commands {
+        let process = Process::init(state.clone(), command).await?;
+        processes.push(process);
+    }
+
+    let mut tasks: Vec<JoinHandle<()>> = Vec::new();
+
+    // Wire the pipes and file redirections
+    for i in 0..len {
+        let (stdout_rx, stdout_tx) = tokio::io::duplex(8192);
+        let (stderr_rx, stderr_tx) = tokio::io::duplex(8192);
+
+        let process = &mut processes[i];
+        let command = &commands[i];
+
+        process.stdout_tx = Some(stdout_tx);
+        process.stderr_tx = Some(stderr_tx);
+
+        let is_last = i == len - 1;
+
+        let (stdout_files, stderr_files) = open_redirect_files(&command.redirects).await;
+
+        let next_stdin_tx = if !is_last {
+            let (next_in_rx, next_in_tx) = tokio::io::duplex(8192);
+            processes[i + 1].stdin_rx = Some(next_in_rx);
+            Some(next_in_tx)
+        } else {
+            None
+        };
+
+        // Multiplex stdout into pipelines and files
+        tasks.push(tokio::spawn(async move {
+            let mut reader = stdout_rx;
+            let mut next_pipe = next_stdin_tx;
+            let mut files = stdout_files;
+            let mut buffer = [0u8; 4096];
+
+            while let Ok(n) = reader.read(&mut buffer).await {
+                if n == 0 {
+                    break;
+                }
+
+                let chunk = &buffer[..n];
+                if let Some(pipe) = next_pipe.as_mut() {
+                    if pipe.write_all(chunk).await.is_err() {
+                        next_pipe = None;
+                    }
+                }
+
+                for file in &mut files {
+                    let _ = file.write_all(chunk).await;
+                    let _ = file.flush().await;
+                }
+                if is_last && files.is_empty() {
+                    let mut stdout = tokio::io::stdout();
+                    let _ = stdout.write_all(chunk).await;
+                    let _ = stdout.flush().await;
+                }
+            }
+        }));
+
+        // Multiplex stderr into files and stderr streams
+        tasks.push(tokio::spawn(async move {
+            let mut reader = stderr_rx;
+            let mut files = stderr_files;
+            let mut buffer = [0u8; 4096];
+
+            while let Ok(n) = reader.read(&mut buffer).await {
+                if n == 0 {
+                    break;
+                }
+                let chunk = &buffer[..n];
+
+                for file in &mut files {
+                    let _ = file.write_all(chunk).await;
+                    let _ = file.flush().await;
+                }
+                if files.is_empty() {
+                    let mut stderr = tokio::io::stderr();
+                    let _ = stderr.write_all(chunk).await;
+                    let _ = stderr.flush().await;
+                }
+            }
+        }));
+    }
+
+    // Concurrent execution layer
+    let mut children = Vec::new();
+    for process in processes.drain(..) {
+        let stdin_rx = process.stdin_rx;
+        let mut stdout_tx = process.stdout_tx.unwrap();
+        let mut stderr_tx = process.stderr_tx.unwrap();
+        let args = process.args;
+
+        match process.kind {
+            ProcessKind::Builtin(builtin) => {
+                let state = state.clone();
+
+                tasks.push(tokio::spawn(async move {
+                    let state_guard = state.lock().await;
+
+                    builtin
+                        .process(state_guard, &args, stdin_rx, stdout_tx, stderr_tx)
+                        .await;
+                }));
+            }
+            ProcessKind::External(exec) => {
+                let mut cmd = Command::new(exec);
+                cmd.args(&args);
+                if stdin_rx.is_some() {
+                    cmd.stdin(Stdio::piped());
+                }
+                cmd.stdout(Stdio::piped());
+                cmd.stderr(Stdio::piped());
+
+                let mut child = cmd.spawn().expect("Failed to execute process");
+                if let Some(mut child_in) = child.stdin.take() {
+                    if let Some(mut stdin_rx) = stdin_rx {
+                        tasks.push(tokio::spawn(async move {
+                            let _ = tokio::io::copy(&mut stdin_rx, &mut child_in).await;
+                        }));
+                    }
+                }
+
+                if let Some(mut child_out) = child.stdout.take() {
+                    tasks.push(tokio::spawn(async move {
+                        let _ = tokio::io::copy(&mut child_out, &mut stdout_tx).await;
+                    }));
+                }
+
+                if let Some(mut child_err) = child.stderr.take() {
+                    tasks.push(tokio::spawn(async move {
+                        let _ = tokio::io::copy(&mut child_err, &mut stderr_tx).await;
+                    }));
+                }
+
+                children.push(child);
+            }
+        };
+    }
+
+    // Sync and reap
+    for mut child in children {
+        let _ = child.wait().await;
+    }
+    for task in tasks {
+        let _ = task.await;
+    }
+
+    Ok(())
+}
+
+async fn open_redirect_files(redirects: &Vec<ExprRedirect>) -> (Vec<File>, Vec<File>) {
+    let mut stdout_files = Vec::new();
+    let mut stderr_files = Vec::new();
+    for redirect in redirects {
+        let file = redirect.open_file().await;
+        if redirect.is_stdout() {
+            stdout_files.push(file);
+        } else if redirect.is_stderr() {
+            stderr_files.push(file);
+        } else {
+            unreachable!();
+        }
+    }
+
+    (stdout_files, stderr_files)
 }

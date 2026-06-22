@@ -1,45 +1,15 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use tokio::fs::File;
 
 use clap::Parser;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::MutexGuard;
 
 use crate::autocomplete::Candidate;
 use crate::state::ChangeDirError;
 use crate::state::State;
-
-macro_rules! write_file {
-    ($files:expr, $($arg:tt)*) => {
-        for file in &mut $files {
-            let _ = file.write_all(&format!($($arg)*).as_bytes()).await;
-            let _ = file.write("\n".as_bytes()).await;
-            file.flush().await.expect("Failed to flush file");
-        }
-    }
-}
-
-macro_rules! write_stdout {
-    ($files:expr, $($arg:tt)*) => {
-        if $files.is_empty() {
-            println!($($arg)*);
-        } else {
-            write_file!($files, $($arg)*);
-        }
-    };
-}
-
-macro_rules! write_stderr {
-    ($files:expr, $($arg:tt)*) => {
-        if $files.is_empty() {
-            eprintln!($($arg)*);
-        } else {
-            write_file!($files, $($arg)*);
-        }
-    };
-}
 
 fn map() -> &'static HashMap<&'static str, Builtin> {
     static MAP: OnceLock<HashMap<&'static str, Builtin>> = OnceLock::new();
@@ -83,35 +53,44 @@ impl Builtin {
     }
 
     #[inline(always)]
-    pub async fn process(
+    pub async fn process<R, W, E>(
         &self,
         state: MutexGuard<'_, State>,
         args: &Vec<String>,
-        stdout_files: Vec<File>,
-        stderr_files: Vec<File>,
-    ) {
+        _stdin: Option<R>,
+        stdout: W,
+        stderr: E,
+    ) where
+        R: AsyncReadExt + Unpin,
+        W: AsyncWriteExt + Unpin,
+        E: AsyncWriteExt + Unpin,
+    {
         match self {
-            Builtin::Echo => process_echo(args, stdout_files).await,
-            Builtin::Exit => process_exit(args, stderr_files).await,
-            Builtin::Cd => process_cd(state, args, stderr_files).await,
-            Builtin::Pwd => process_pwd(state, args, stdout_files, stderr_files).await,
-            Builtin::Rehash => process_rehash(state, args, stderr_files).await,
-            Builtin::Complete => process_complete(state, args, stdout_files, stderr_files).await,
-            Builtin::Jobs => process_jobs(state, args, stderr_files).await,
-            Builtin::Type => process_type(state, args, stdout_files, stderr_files).await,
+            Builtin::Echo => process_echo(args, stdout).await,
+            Builtin::Exit => process_exit(args, stderr).await,
+            Builtin::Cd => process_cd(state, args, stderr).await,
+            Builtin::Pwd => process_pwd(state, args, stdout, stderr).await,
+            Builtin::Rehash => process_rehash(state, args, stderr).await,
+            Builtin::Complete => process_complete(state, args, stdout, stderr).await,
+            Builtin::Jobs => process_jobs(state, args, stdout, stderr).await,
+            Builtin::Type => process_type(state, args, stdout, stderr).await,
         }
     }
 }
 
 #[inline(always)]
-async fn process_echo(args: &Vec<String>, mut stdout_files: Vec<File>) {
-    write_stdout!(stdout_files, "{}", args.join(" "));
+async fn process_echo<W: AsyncWriteExt + Unpin>(args: &Vec<String>, mut stdout: W) {
+    let _ = stdout
+        .write_all(format!("{}\n", args.join(" ")).as_bytes())
+        .await;
 }
 
 #[inline(always)]
-async fn process_exit(args: &Vec<String>, mut stderr_files: Vec<File>) {
+async fn process_exit<E: AsyncWriteExt + Unpin>(args: &Vec<String>, mut stderr: E) {
     if !args.is_empty() {
-        write_stderr!(stderr_files, "exit: expects no argument");
+        let _ = stderr
+            .write_all("exit: expects no argument\n".as_bytes())
+            .await;
         return;
     }
     // TODO: do not exit if there are running jobs
@@ -119,47 +98,57 @@ async fn process_exit(args: &Vec<String>, mut stderr_files: Vec<File>) {
 }
 
 #[inline(always)]
-async fn process_cd(
+async fn process_cd<E: AsyncWriteExt + Unpin>(
     mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stderr_files: Vec<File>,
+    mut stderr: E,
 ) {
     if let Some(new_dir) = args.first() {
         match state.change_dir(new_dir) {
             Err(err) => match err {
                 ChangeDirError::DoesNotExist => {
-                    write_stderr!(stderr_files, "cd: {new_dir}: No such file or directory");
+                    let _ = stderr
+                        .write_all("cd: {new_dir}: No such file or directory\n".as_bytes())
+                        .await;
                 }
             },
             _ => {}
         }
     } else {
-        write_stderr!(stderr_files, "cd: expects exactly one argument");
+        let _ = stderr
+            .write_all("cd: expects exactly one argument\n".as_bytes())
+            .await;
     }
 }
 
 #[inline(always)]
-async fn process_pwd(
+async fn process_pwd<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stdout_files: Vec<File>,
-    mut stderr_files: Vec<File>,
+    mut stdout: W,
+    mut stderr: E,
 ) {
     if !args.is_empty() {
-        write_stderr!(stderr_files, "pwd: expects no argument");
+        let _ = stderr
+            .write_all("pwd: expects no argument\n".as_bytes())
+            .await;
         return;
     }
-    write_stdout!(stdout_files, "{}", state.get_current_dir_as_string());
+    let _ = stdout
+        .write_all(format!("{}\n", state.get_current_dir_as_string()).as_bytes())
+        .await;
 }
 
 #[inline(always)]
-async fn process_rehash(
+async fn process_rehash<E: AsyncWriteExt + Unpin>(
     mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stderr_files: Vec<File>,
+    mut stderr: E,
 ) {
     if !args.is_empty() {
-        write_stderr!(stderr_files, "rehash: expects no argument");
+        let _ = stderr
+            .write_all("rehash: expects no argument\n".as_bytes())
+            .await;
         return;
     }
     state.reinit();
@@ -191,11 +180,11 @@ struct CompleteArgs {
 }
 
 #[inline(always)]
-async fn process_complete(
+async fn process_complete<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stdout_files: Vec<File>,
-    mut stderr_files: Vec<File>,
+    mut stdout: W,
+    mut stderr: E,
 ) {
     match CompleteArgs::try_parse_from(
         std::iter::once("complete").chain(args.into_iter().map(|s| s.as_str())),
@@ -205,64 +194,72 @@ async fn process_complete(
                 state.add_completer(args.extra.first().unwrap().clone(), new_completion);
             } else if let Some(program) = args.program {
                 if let Some(completion) = state.get_completer(&program) {
-                    write_stdout!(
-                        stdout_files,
-                        "complete -C '{}' {}",
-                        completion.path.display(),
-                        program
-                    );
+                    let _ = stdout
+                        .write_all(
+                            format!("complete -C '{}' {}\n", completion.path.display(), program)
+                                .as_bytes(),
+                        )
+                        .await;
                 } else {
-                    write_stdout!(
-                        stdout_files,
-                        "complete: {}: no completion specification",
-                        program
-                    );
+                    let _ = stdout
+                        .write_all(
+                            format!("complete: {}: no completion specification\n", program)
+                                .as_bytes(),
+                        )
+                        .await;
                 }
             } else if let Some(remove) = args.remove {
                 state.remove_completer(&remove);
             }
         }
         Err(err) => {
-            write_stderr!(stderr_files, "{}", err);
+            let _ = stderr.write_all(format!("{}\n", err).as_bytes()).await;
         }
     }
 }
 
 #[inline(always)]
-async fn process_jobs(
+async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stderr_files: Vec<File>,
+    mut _stdout: W,
+    mut stderr: E,
 ) {
     if !args.is_empty() {
-        write_stderr!(stderr_files, "jobs: expects no argument");
+        let _ = stderr
+            .write_all("jobs: expects no argument\n".as_bytes())
+            .await;
         return;
     }
+    // TODO: pass in the stream
     state.log_jobs();
     state.reap_done_jobs(false);
 }
 
 #[inline(always)]
-async fn process_type(
+async fn process_type<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stdout_files: Vec<File>,
-    mut stderr_files: Vec<File>,
+    mut stdout: W,
+    mut stderr: E,
 ) {
     if let Some(cmd) = args.first() {
         if Builtin::from_str(cmd).is_some() {
-            write_stdout!(stdout_files, "{} is a shell builtin", cmd);
+            let _ = stdout
+                .write_all(format!("{} is a shell builtin\n", cmd).as_bytes())
+                .await;
         } else if let Some(command) = state.get_command(cmd) {
-            write_stdout!(
-                stdout_files,
-                "{} is {}",
-                cmd,
-                command.to_str().unwrap_or("")
-            );
+            let _ = stdout
+                .write_all(format!("{} is {}\n", cmd, command.to_str().unwrap_or("")).as_bytes())
+                .await;
         } else {
-            write_stdout!(stdout_files, "{cmd}: not found");
+            let _ = stdout
+                .write_all(format!("{cmd}: not found\n").as_bytes())
+                .await;
         }
     } else {
-        write_stderr!(stderr_files, "type: expects exactly one argument");
+        let _ = stderr
+            .write_all("type: expects exactly one argument\n".as_bytes())
+            .await;
     }
 }

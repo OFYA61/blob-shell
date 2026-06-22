@@ -13,7 +13,6 @@ use tokio::sync::Mutex;
 
 use self::ast::ExprKind;
 use self::ast::ExprPipedCommands;
-use self::process::Pipeline;
 use self::process::Process;
 use self::state::State;
 
@@ -46,58 +45,39 @@ async fn main() {
         // Interpret the AST
         for expr in ast.unwrap() {
             match expr.kind {
-                ExprKind::Command(command) => {
-                    match Process::init_from_expr_command(
-                        state.clone(),
-                        &command,
-                        false,
-                        command
-                            .redirects
-                            .iter()
-                            .any(|redirect| redirect.is_stdout()),
-                        command
-                            .redirects
-                            .iter()
-                            .any(|redirect| redirect.is_stderr()),
-                    )
-                    .await
-                    {
-                        Ok(mut process) => {
-                            let (stdout_files, stderr_files) = process.get_redirect_files().await;
-                            if expr.is_background {
-                                let state = state.clone();
-                                let mut command = String::from(command_raw);
-                                command.remove(command.rfind("&").unwrap());
-                                let command = command.trim().to_owned();
-                                let id = state.lock().await.create_job(process.pid, command);
-                                tokio::spawn(async move {
-                                    process.run(None, stdout_files, stderr_files).await;
-                                    state.lock().await.mark_job_done(id);
-                                });
-                            } else {
-                                process.run(None, stdout_files, stderr_files).await;
-                            }
-                        }
-                        Err(err) => {
-                            println!("{}", err);
-                            continue;
+                ExprKind::Command(command) => match Process::init(state.clone(), &command).await {
+                    Ok(mut process) => {
+                        if expr.is_background {
+                            // let state = state.clone();
+                            // let mut command = String::from(command_raw);
+                            // command.remove(command.rfind("&").unwrap());
+                            // let command = command.trim().to_owned();
+                            // let id = state.lock().await.create_job(process.pid, command);
+                            // tokio::spawn(async move {
+                            //     process.run().await;
+                            //     state.lock().await.mark_job_done(id);
+                            // });
+                        } else {
+                            process.run(state.clone()).await;
                         }
                     }
-                }
+                    Err(err) => {
+                        println!("{}", err);
+                        continue;
+                    }
+                },
                 ExprKind::PipedCommands(ExprPipedCommands { commands }) => {
                     if commands.is_empty() {
                         continue;
                     }
 
-                    match Pipeline::init(state.clone(), &commands).await {
-                        Ok(mut pipeline) => {
-                            pipeline.run().await;
-                        }
+                    match process::run_pipeline(state.clone(), &commands).await {
+                        Ok(()) => {}
                         Err(err) => {
                             println!("{}", err);
                             continue;
                         }
-                    }
+                    };
                 }
             }
         }
