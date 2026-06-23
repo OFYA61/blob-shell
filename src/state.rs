@@ -199,15 +199,17 @@ impl State {
             .map(|(id, _)| *id)
             .collect::<Vec<usize>>();
 
+        let last_id = self.jobs.keys().last().copied();
+        let second_last_id = self.jobs.keys().rev().nth(1).copied();
         for id in ids_to_remove {
             let job = self.jobs.remove(&id).unwrap();
             if print {
-                let marker = if let Some(last_id) = self.jobs.keys().last()
-                    && *last_id == id
+                let marker = if let Some(last_id) = last_id
+                    && last_id == id
                 {
                     '+'
-                } else if let Some(second_last_id) = self.jobs.keys().rev().nth(1)
-                    && *second_last_id == id
+                } else if let Some(second_last_id) = second_last_id
+                    && second_last_id == id
                 {
                     '-'
                 } else {
