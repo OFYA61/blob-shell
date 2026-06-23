@@ -53,6 +53,11 @@ fn type_builtin() {
     shell.send("\r");
     shell.exp_string("type is a shell builtin");
 
+    shell.send("type history");
+    shell.exp_string("type history");
+    shell.send("\r");
+    shell.exp_string("history is a shell builtin");
+
     shell.send("type invalid_command");
     shell.exp_string("type invalid_command");
     shell.send("\r");

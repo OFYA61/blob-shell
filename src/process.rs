@@ -301,7 +301,7 @@ async fn multiplex_stream<R>(
 
         if let Some(dest) = extra_dest.as_mut() {
             if dest.write_all(chunk).await.is_err() {
-                extra_dest = None;
+                break;
             } else {
                 let _ = dest.flush().await;
             }
