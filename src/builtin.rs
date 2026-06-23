@@ -241,7 +241,7 @@ async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
 
 #[inline(always)]
 async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
-    mut state: MutexGuard<'_, State>,
+    state: MutexGuard<'_, State>,
     args: &Vec<String>,
     stdout: W,
     mut stderr: E,

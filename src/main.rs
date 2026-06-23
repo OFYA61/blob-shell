@@ -42,6 +42,8 @@ async fn main() {
             continue;
         }
 
+        state.lock().await.add_history(command_raw.to_string());
+
         let ast = ast::parse(command_raw);
         if ast.is_err() {
             continue;
@@ -87,7 +89,5 @@ async fn main() {
                 }
             }
         }
-
-        state.lock().await.add_history(command_raw.to_string());
     }
 }
