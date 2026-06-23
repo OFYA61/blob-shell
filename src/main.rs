@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 
 use self::ast::ExprKind;
 use self::ast::ExprPipedCommands;
+use self::process::BackgroundProcessInfo;
 use self::process::Process;
 use self::state::State;
 
@@ -21,7 +22,11 @@ async fn main() {
     let state = Arc::new(Mutex::new(State::init()));
 
     loop {
-        state.lock().await.reap_done_jobs(true);
+        state
+            .lock()
+            .await
+            .reap_done_jobs(tokio::io::stdout(), true)
+            .await;
 
         let command_raw = match input::get_input(state.clone()).await {
             Ok(input) => input,
@@ -46,20 +51,20 @@ async fn main() {
         for expr in ast.unwrap() {
             match expr.kind {
                 ExprKind::Command(command) => match Process::init(state.clone(), &command).await {
-                    Ok(mut process) => {
-                        if expr.is_background {
-                            // let state = state.clone();
-                            // let mut command = String::from(command_raw);
-                            // command.remove(command.rfind("&").unwrap());
-                            // let command = command.trim().to_owned();
-                            // let id = state.lock().await.create_job(process.pid, command);
-                            // tokio::spawn(async move {
-                            //     process.run().await;
-                            //     state.lock().await.mark_job_done(id);
-                            // });
-                        } else {
-                            process.run(state.clone()).await;
-                        }
+                    Ok(process) => {
+                        process
+                            .run(
+                                state.clone(),
+                                if expr.is_background {
+                                    let mut command = String::from(command_raw);
+                                    command.remove(command.rfind("&").unwrap());
+                                    let command = command.trim().to_owned();
+                                    Some(BackgroundProcessInfo { command })
+                                } else {
+                                    None
+                                },
+                            )
+                            .await;
                     }
                     Err(err) => {
                         println!("{}", err);
@@ -67,6 +72,7 @@ async fn main() {
                     }
                 },
                 ExprKind::PipedCommands(ExprPipedCommands { commands }) => {
+                    // TODO: Implement background processing for pipes
                     if commands.is_empty() {
                         continue;
                     }

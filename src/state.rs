@@ -6,6 +6,8 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
+use tokio::io::AsyncWriteExt;
+
 use crate::autocomplete::Candidate;
 use crate::completer::Completer;
 
@@ -170,46 +172,56 @@ impl State {
         available_id
     }
 
-    pub fn log_jobs(&self) {
+    pub async fn log_jobs<W: AsyncWriteExt + Unpin>(&mut self, mut stdout: W) {
         for (_, job) in self.jobs.iter().rev().skip(2).rev() {
-            println!("[{}]   {} {}", job.id, job.status, job.command);
+            let _ = stdout
+                .write_all(format!("[{}]   {} {}\n", job.id, job.status, job.command).as_bytes())
+                .await;
         }
         if let Some((_, job)) = self.jobs.iter().rev().nth(1) {
-            println!("[{}]-  {} {}", job.id, job.status, job.command);
+            let _ = stdout
+                .write_all(format!("[{}]-  {} {}\n", job.id, job.status, job.command).as_bytes())
+                .await;
         }
         if let Some((_, job)) = self.jobs.iter().rev().next() {
-            println!("[{}]+  {} {}", job.id, job.status, job.command);
+            let _ = stdout
+                .write_all(format!("[{}]+  {} {}\n", job.id, job.status, job.command).as_bytes())
+                .await;
         }
+        self.reap_done_jobs(stdout, false).await;
     }
 
-    pub fn reap_done_jobs(&mut self, print: bool) {
+    pub async fn reap_done_jobs<W: AsyncWriteExt + Unpin>(&mut self, mut stdout: W, print: bool) {
         let ids_to_remove = self
             .jobs
             .iter()
             .filter(|(_, job)| job.status == JobStatus::Done)
-            .map(|(id, job)| {
-                if print {
-                    let marker = if let Some(last_id) = self.jobs.keys().last()
-                        && last_id == id
-                    {
-                        '+'
-                    } else if let Some(second_last_id) = self.jobs.keys().rev().nth(1)
-                        && second_last_id == id
-                    {
-                        '-'
-                    } else {
-                        ' '
-                    };
-
-                    println!("[{}]{}  {} {}", job.id, marker, job.status, job.command);
-                }
-                *id
-            })
+            .map(|(id, _)| *id)
             .collect::<Vec<usize>>();
 
-        ids_to_remove.iter().for_each(|id| {
-            self.jobs.remove(id);
-        });
+        for id in ids_to_remove {
+            let job = self.jobs.remove(&id).unwrap();
+            if print {
+                let marker = if let Some(last_id) = self.jobs.keys().last()
+                    && *last_id == id
+                {
+                    '+'
+                } else if let Some(second_last_id) = self.jobs.keys().rev().nth(1)
+                    && *second_last_id == id
+                {
+                    '-'
+                } else {
+                    ' '
+                };
+
+                let _ = stdout
+                    .write_all(
+                        format!("[{}]{}  {} {}\n", job.id, marker, job.status, job.command)
+                            .as_bytes(),
+                    )
+                    .await;
+            }
+        }
     }
 
     pub fn mark_job_done(&mut self, id: usize) {

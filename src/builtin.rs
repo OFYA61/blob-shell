@@ -224,7 +224,7 @@ async fn process_complete<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
 async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut _stdout: W,
+    stdout: W,
     mut stderr: E,
 ) {
     if !args.is_empty() {
@@ -233,9 +233,7 @@ async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
             .await;
         return;
     }
-    // TODO: pass in the stream
-    state.log_jobs();
-    state.reap_done_jobs(false);
+    state.log_jobs(stdout).await;
 }
 
 #[inline(always)]

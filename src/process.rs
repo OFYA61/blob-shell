@@ -16,6 +16,11 @@ use crate::builtin::Builtin;
 use crate::state::State;
 
 #[derive(Debug)]
+pub struct BackgroundProcessInfo {
+    pub command: String,
+}
+
+#[derive(Debug)]
 pub enum ProcessKind {
     Builtin(Builtin),
     External(String),
@@ -64,7 +69,11 @@ impl Process {
         })
     }
 
-    pub async fn run(&mut self, state: Arc<Mutex<State>>) {
+    pub async fn run(
+        self,
+        state: Arc<Mutex<State>>,
+        background_process_info: Option<BackgroundProcessInfo>,
+    ) {
         let mut tasks: Vec<JoinHandle<()>> = Vec::new();
 
         // Setup I/O and file redirection
@@ -121,19 +130,46 @@ impl Process {
         }));
 
         // Execute
-        match &self.kind {
+        match self.kind {
             ProcessKind::Builtin(builtin) => {
-                let state = state.lock().await;
+                if let Some(BackgroundProcessInfo { command }) = background_process_info {
+                    let state_clone = state.clone();
+                    let id = state_clone
+                        .lock()
+                        .await
+                        .create_job(std::process::id(), command);
 
-                builtin
-                    .process(
-                        state,
-                        &self.args,
-                        None::<tokio::io::Stdin>,
-                        stdout_tx,
-                        stderr_tx,
-                    )
-                    .await;
+                    tokio::spawn(async move {
+                        let state = state.lock().await;
+                        builtin
+                            .process(
+                                state,
+                                &self.args,
+                                None::<tokio::io::Stdin>,
+                                stdout_tx,
+                                stderr_tx,
+                            )
+                            .await;
+                        for task in tasks {
+                            let _ = task.await;
+                        }
+                        state_clone.lock().await.mark_job_done(id);
+                    });
+                } else {
+                    let state = state.lock().await;
+                    builtin
+                        .process(
+                            state,
+                            &self.args,
+                            None::<tokio::io::Stdin>,
+                            stdout_tx,
+                            stderr_tx,
+                        )
+                        .await;
+                    for task in tasks {
+                        let _ = task.await;
+                    }
+                }
             }
             ProcessKind::External(exec) => {
                 let mut cmd = Command::new(exec);
@@ -155,14 +191,28 @@ impl Process {
                     }));
                 }
 
-                let _ = child.wait().await;
+                if let Some(BackgroundProcessInfo { command }) = background_process_info {
+                    let state_clone = state.clone();
+                    let id = state_clone
+                        .lock()
+                        .await
+                        .create_job(std::process::id(), command);
+
+                    tokio::spawn(async move {
+                        let _ = child.wait().await;
+                        for task in tasks {
+                            let _ = task.await;
+                        }
+                        state_clone.lock().await.mark_job_done(id);
+                    });
+                } else {
+                    let _ = child.wait().await;
+                    for task in tasks {
+                        let _ = task.await;
+                    }
+                }
             }
         };
-
-        // Reap
-        for task in tasks {
-            let _ = task.await;
-        }
     }
 }
 
