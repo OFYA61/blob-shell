@@ -159,6 +159,10 @@ impl TestFile {
         println!("Creating test file {:?}", path);
         Self { path }
     }
+
+    pub fn path(&self) -> &str {
+        self.path.to_str().expect("Failed to get test file path")
+    }
 }
 
 pub struct TestExecutable {
