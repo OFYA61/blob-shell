@@ -25,7 +25,7 @@ pub struct State {
     completers: HashMap<String, Completer>,
 
     jobs: BTreeMap<usize, Job>,
-    history: Vec<String>,
+    pub history: Vec<String>,
 }
 
 impl State {

@@ -75,6 +75,8 @@ pub async fn get_input(state: Arc<Mutex<State>>) -> Result<String, io::Error> {
     let mut input = String::new();
     let mut next_auto_complete_action = AutoCompleteAction::FetchCandidates;
     let mut auto_complete_candidates = Candidates::init();
+    let history_limit = state.lock().await.history.len();
+    let mut history_index = history_limit;
 
     loop {
         if let Event::Key(KeyEvent {
@@ -83,6 +85,28 @@ pub async fn get_input(state: Arc<Mutex<State>>) -> Result<String, io::Error> {
         {
             if code != KeyCode::Tab {
                 next_auto_complete_action = AutoCompleteAction::FetchCandidates;
+            }
+
+            if code == KeyCode::Up || code == KeyCode::Down {
+                if code == KeyCode::Up {
+                    if history_index != 0 {
+                        history_index -= 1;
+                    }
+                } else {
+                    history_index += 1;
+                }
+                history_index = history_index.clamp(1, history_limit);
+                if let Some(entry) = state.lock().await.history.get(history_index) {
+                    io::stdout().execute(MoveToColumn(2))?;
+                    for _ in 0..input.len() {
+                        print!(" ");
+                    }
+                    io::stdout().execute(MoveToColumn(2))?;
+                    input = entry.clone();
+                    print!("{}", input);
+                    io::stdout().flush()?;
+                }
+                continue;
             }
 
             match code {
