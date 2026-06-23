@@ -87,5 +87,7 @@ async fn main() {
                 }
             }
         }
+
+        state.lock().await.add_history(command_raw.to_string());
     }
 }

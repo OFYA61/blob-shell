@@ -25,6 +25,7 @@ pub struct State {
     completers: HashMap<String, Completer>,
 
     jobs: BTreeMap<usize, Job>,
+    history: Vec<String>,
 }
 
 impl State {
@@ -38,6 +39,7 @@ impl State {
                 programs: HashMap::new(),
                 completers: HashMap::new(),
                 jobs: BTreeMap::new(),
+                history: vec![String::from("")],
             };
         }
         let path_var = unsafe { path_var.unwrap_unchecked() };
@@ -66,6 +68,7 @@ impl State {
             programs,
             completers: HashMap::new(),
             jobs: BTreeMap::new(),
+            history: vec![String::from("")],
         }
     }
 
@@ -232,6 +235,19 @@ impl State {
             .iter_mut()
             .find(|(jid, _)| **jid == id)
             .map(|(_, job)| job.mark_done());
+    }
+
+    pub fn add_history(&mut self, command: String) {
+        self.history.push(command);
+    }
+
+    pub async fn print_history<W: AsyncWriteExt + Unpin>(&self, mut stdout: W) {
+        for (i, command) in self.history.iter().skip(1).enumerate() {
+            let _ = stdout
+                .write_all(format!("    {}  {}\n", i, command).as_bytes())
+                .await;
+        }
+        let _ = stdout.flush().await;
     }
 }
 

@@ -75,7 +75,7 @@ impl Builtin {
             Builtin::Rehash => process_rehash(state, args, stderr).await,
             Builtin::Complete => process_complete(state, args, stdout, stderr).await,
             Builtin::Jobs => process_jobs(state, args, stdout, stderr).await,
-            Builtin::History => todo!(),
+            Builtin::History => process_history(state, args, stdout, stderr).await,
             Builtin::Type => process_type(state, args, stdout, stderr).await,
         }
     }
@@ -232,11 +232,27 @@ async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
 ) {
     if !args.is_empty() {
         let _ = stderr
-            .write_all("jobs: expects no argument\n".as_bytes())
+            .write_all("jobs: expects no arguments\n".as_bytes())
             .await;
         return;
     }
     state.log_jobs(stdout).await;
+}
+
+#[inline(always)]
+async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
+    mut state: MutexGuard<'_, State>,
+    args: &Vec<String>,
+    stdout: W,
+    mut stderr: E,
+) {
+    if !args.is_empty() {
+        let _ = stderr
+            .write_all("history: expects no arguments\n".as_bytes())
+            .await;
+        return;
+    }
+    state.print_history(stdout).await;
 }
 
 #[inline(always)]
