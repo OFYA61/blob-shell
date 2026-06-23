@@ -224,6 +224,7 @@ impl State {
                     .await;
             }
         }
+        let _ = stdout.flush().await;
     }
 
     pub fn mark_job_done(&mut self, id: usize) {

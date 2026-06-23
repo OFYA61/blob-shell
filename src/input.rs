@@ -70,7 +70,7 @@ pub async fn get_input(state: Arc<Mutex<State>>) -> Result<String, io::Error> {
     enable_raw_mode().expect("Failed to enable raw mode");
     io::stdout().execute(MoveToColumn(0))?;
     print!("$ ");
-    std::io::stdout().flush()?;
+    io::stdout().flush()?;
 
     let mut input = String::new();
     let mut next_auto_complete_action = AutoCompleteAction::FetchCandidates;
