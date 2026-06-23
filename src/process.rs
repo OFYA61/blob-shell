@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 use tokio::io::DuplexStream;
 use tokio::process::Command;
@@ -82,51 +83,22 @@ impl Process {
 
         let (stdout_files, stderr_files) = open_redirect_files(&self.redirects).await;
 
+        let stdout: Option<Box<dyn AsyncWrite + Unpin + Send>> = if stdout_files.is_empty() {
+            Some(Box::new(tokio::io::stdout()))
+        } else {
+            None
+        };
+        let stderr: Option<Box<dyn AsyncWrite + Unpin + Send>> = if stderr_files.is_empty() {
+            Some(Box::new(tokio::io::stderr()))
+        } else {
+            None
+        };
+
         tasks.push(tokio::spawn(async move {
-            let mut reader = stdout_rx;
-            let mut files = stdout_files;
-            let mut buffer = [0u8; 4096];
-
-            while let Ok(n) = reader.read(&mut buffer).await {
-                if n == 0 {
-                    break;
-                }
-                let chunk = &buffer[..n];
-
-                for file in &mut files {
-                    let _ = file.write_all(chunk).await;
-                    let _ = file.flush().await;
-                }
-
-                if files.is_empty() {
-                    let mut stdout = tokio::io::stdout();
-                    let _ = stdout.write_all(chunk).await;
-                    let _ = stdout.flush().await;
-                }
-            }
+            multiplex_stream(stdout_rx, stdout_files, stdout).await;
         }));
-
         tasks.push(tokio::spawn(async move {
-            let mut reader = stderr_rx;
-            let mut files = stderr_files;
-            let mut buffer = [0u8; 4096];
-
-            while let Ok(n) = reader.read(&mut buffer).await {
-                if n == 0 {
-                    break;
-                }
-                let chunk = &buffer[..n];
-
-                for file in &mut files {
-                    let _ = file.write_all(chunk).await;
-                    let _ = file.flush().await;
-                }
-                if files.is_empty() {
-                    let mut stderr = tokio::io::stderr();
-                    let _ = stderr.write_all(chunk).await;
-                    let _ = stderr.flush().await;
-                }
-            }
+            multiplex_stream(stderr_rx, stderr_files, stderr).await;
         }));
 
         // Execute
@@ -261,67 +233,31 @@ pub async fn run_pipeline(
 
         let (stdout_files, stderr_files) = open_redirect_files(&command.redirects).await;
 
-        let next_stdin_tx = if !is_last {
+        let extra_stdout_dest: Option<Box<dyn AsyncWrite + Unpin + Send>> = if !is_last {
             let (next_in_rx, next_in_tx) = tokio::io::duplex(8192);
             processes[i + 1].stdin_rx = Some(next_in_rx);
-            Some(next_in_tx)
+            Some(Box::new(next_in_tx))
+        } else if stdout_files.is_empty() {
+            Some(Box::new(tokio::io::stdout()))
         } else {
             None
         };
 
+        let extra_stderr_dest: Option<Box<dyn AsyncWrite + Unpin + Send>> =
+            if stderr_files.is_empty() {
+                Some(Box::new(tokio::io::stderr()))
+            } else {
+                None
+            };
+
         // Multiplex stdout into pipelines and files
         tasks.push(tokio::spawn(async move {
-            let mut reader = stdout_rx;
-            let mut next_pipe = next_stdin_tx;
-            let mut files = stdout_files;
-            let mut buffer = [0u8; 4096];
-
-            while let Ok(n) = reader.read(&mut buffer).await {
-                if n == 0 {
-                    break;
-                }
-
-                let chunk = &buffer[..n];
-                if let Some(pipe) = next_pipe.as_mut() {
-                    if pipe.write_all(chunk).await.is_err() {
-                        next_pipe = None;
-                    }
-                }
-
-                for file in &mut files {
-                    let _ = file.write_all(chunk).await;
-                    let _ = file.flush().await;
-                }
-                if is_last && files.is_empty() {
-                    let mut stdout = tokio::io::stdout();
-                    let _ = stdout.write_all(chunk).await;
-                    let _ = stdout.flush().await;
-                }
-            }
+            multiplex_stream(stdout_rx, stdout_files, extra_stdout_dest).await;
         }));
 
         // Multiplex stderr into files and stderr streams
         tasks.push(tokio::spawn(async move {
-            let mut reader = stderr_rx;
-            let mut files = stderr_files;
-            let mut buffer = [0u8; 4096];
-
-            while let Ok(n) = reader.read(&mut buffer).await {
-                if n == 0 {
-                    break;
-                }
-                let chunk = &buffer[..n];
-
-                for file in &mut files {
-                    let _ = file.write_all(chunk).await;
-                    let _ = file.flush().await;
-                }
-                if files.is_empty() {
-                    let mut stderr = tokio::io::stderr();
-                    let _ = stderr.write_all(chunk).await;
-                    let _ = stderr.flush().await;
-                }
-            }
+            multiplex_stream(stderr_rx, stderr_files, extra_stderr_dest).await
         }));
     }
 
@@ -406,4 +342,33 @@ async fn open_redirect_files(redirects: &Vec<ExprRedirect>) -> (Vec<File>, Vec<F
     }
 
     (stdout_files, stderr_files)
+}
+
+async fn multiplex_stream<R>(
+    mut reader: R,
+    mut files: Vec<File>,
+    mut extra_dest: Option<Box<dyn AsyncWrite + Unpin + Send>>,
+) where
+    R: AsyncReadExt + Unpin,
+{
+    let mut buffer = [0u8; 4096];
+    while let Ok(n) = reader.read(&mut buffer).await {
+        if n == 0 {
+            break;
+        }
+        let chunk = &buffer[..n];
+
+        if let Some(dest) = extra_dest.as_mut() {
+            if dest.write_all(chunk).await.is_err() {
+                extra_dest = None;
+            } else {
+                let _ = dest.flush().await;
+            }
+        }
+
+        for file in &mut files {
+            let _ = file.write_all(chunk).await;
+            let _ = file.flush().await;
+        }
+    }
 }
