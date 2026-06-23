@@ -241,10 +241,21 @@ impl State {
         self.history.push(command);
     }
 
-    pub async fn print_history<W: AsyncWriteExt + Unpin>(&self, mut stdout: W) {
-        for (i, command) in self.history.iter().skip(1).enumerate() {
+    pub async fn print_history<W: AsyncWriteExt + Unpin>(
+        &self,
+        mut stdout: W,
+        tail: Option<usize>,
+    ) {
+        let skip;
+        if let Some(tail) = tail {
+            skip = self.history.len() - tail;
+        } else {
+            skip = 1;
+        }
+
+        for i in skip..self.history.len() {
             let _ = stdout
-                .write_all(format!("    {}  {}\n", i, command).as_bytes())
+                .write_all(format!("    {}  {}\n", i, self.history[i]).as_bytes())
                 .await;
         }
         let _ = stdout.flush().await;

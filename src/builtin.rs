@@ -246,13 +246,19 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     stdout: W,
     mut stderr: E,
 ) {
-    if !args.is_empty() {
-        let _ = stderr
-            .write_all("history: expects no arguments\n".as_bytes())
-            .await;
-        return;
-    }
-    state.print_history(stdout).await;
+    let tail: Option<usize> = if let Some(arg) = args.first() {
+        if let Ok(num) = arg.parse() {
+            Some(num)
+        } else {
+            let _ = stderr
+                .write_all(format!("{} is not a number\n", arg).as_bytes())
+                .await;
+            return;
+        }
+    } else {
+        None
+    };
+    state.print_history(stdout, tail).await;
 }
 
 #[inline(always)]
