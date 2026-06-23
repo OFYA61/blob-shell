@@ -7,6 +7,7 @@ use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 use tokio::io::DuplexStream;
+use tokio::process::Child;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -78,8 +79,8 @@ impl Process {
         let mut tasks: Vec<JoinHandle<()>> = Vec::new();
 
         // Setup I/O and file redirection
-        let (stdout_rx, mut stdout_tx) = tokio::io::duplex(8192);
-        let (stderr_rx, mut stderr_tx) = tokio::io::duplex(8192);
+        let (stdout_rx, stdout_tx) = tokio::io::duplex(8192);
+        let (stderr_rx, stderr_tx) = tokio::io::duplex(8192);
 
         let (stdout_files, stderr_files) = open_redirect_files(&self.redirects).await;
 
@@ -151,17 +152,7 @@ impl Process {
                 cmd.stderr(Stdio::piped());
 
                 let mut child = cmd.spawn().expect("Failed to execute process");
-                if let Some(mut child_out) = child.stdout.take() {
-                    tasks.push(tokio::spawn(async move {
-                        let _ = tokio::io::copy(&mut child_out, &mut stdout_tx).await;
-                    }));
-                }
-
-                if let Some(mut child_err) = child.stderr.take() {
-                    tasks.push(tokio::spawn(async move {
-                        let _ = tokio::io::copy(&mut child_err, &mut stderr_tx).await;
-                    }));
-                }
+                bridge_child_streams(&mut child, &mut tasks, None, stdout_tx, stderr_tx);
 
                 if let Some(BackgroundProcessInfo { command }) = background_process_info {
                     let state_clone = state.clone();
@@ -250,12 +241,9 @@ pub async fn run_pipeline(
                 None
             };
 
-        // Multiplex stdout into pipelines and files
         tasks.push(tokio::spawn(async move {
             multiplex_stream(stdout_rx, stdout_files, extra_stdout_dest).await;
         }));
-
-        // Multiplex stderr into files and stderr streams
         tasks.push(tokio::spawn(async move {
             multiplex_stream(stderr_rx, stderr_files, extra_stderr_dest).await
         }));
@@ -265,8 +253,8 @@ pub async fn run_pipeline(
     let mut children = Vec::new();
     for process in processes.drain(..) {
         let stdin_rx = process.stdin_rx;
-        let mut stdout_tx = process.stdout_tx.unwrap();
-        let mut stderr_tx = process.stderr_tx.unwrap();
+        let stdout_tx = process.stdout_tx.unwrap();
+        let stderr_tx = process.stderr_tx.unwrap();
         let args = process.args;
 
         match process.kind {
@@ -291,25 +279,7 @@ pub async fn run_pipeline(
                 cmd.stderr(Stdio::piped());
 
                 let mut child = cmd.spawn().expect("Failed to execute process");
-                if let Some(mut child_in) = child.stdin.take() {
-                    if let Some(mut stdin_rx) = stdin_rx {
-                        tasks.push(tokio::spawn(async move {
-                            let _ = tokio::io::copy(&mut stdin_rx, &mut child_in).await;
-                        }));
-                    }
-                }
-
-                if let Some(mut child_out) = child.stdout.take() {
-                    tasks.push(tokio::spawn(async move {
-                        let _ = tokio::io::copy(&mut child_out, &mut stdout_tx).await;
-                    }));
-                }
-
-                if let Some(mut child_err) = child.stderr.take() {
-                    tasks.push(tokio::spawn(async move {
-                        let _ = tokio::io::copy(&mut child_err, &mut stderr_tx).await;
-                    }));
-                }
+                bridge_child_streams(&mut child, &mut tasks, stdin_rx, stdout_tx, stderr_tx);
 
                 children.push(child);
             }
@@ -370,5 +340,33 @@ async fn multiplex_stream<R>(
             let _ = file.write_all(chunk).await;
             let _ = file.flush().await;
         }
+    }
+}
+
+fn bridge_child_streams(
+    child: &mut Child,
+    tasks: &mut Vec<JoinHandle<()>>,
+    stdin_rx: Option<DuplexStream>,
+    mut stdout_tx: DuplexStream,
+    mut stderr_tx: DuplexStream,
+) {
+    if let Some(mut child_in) = child.stdin.take() {
+        if let Some(mut stdin_rx) = stdin_rx {
+            tasks.push(tokio::spawn(async move {
+                let _ = tokio::io::copy(&mut stdin_rx, &mut child_in).await;
+            }));
+        }
+    }
+
+    if let Some(mut child_out) = child.stdout.take() {
+        tasks.push(tokio::spawn(async move {
+            let _ = tokio::io::copy(&mut child_out, &mut stdout_tx).await;
+        }));
+    }
+
+    if let Some(mut child_err) = child.stderr.take() {
+        tasks.push(tokio::spawn(async move {
+            let _ = tokio::io::copy(&mut child_err, &mut stderr_tx).await;
+        }));
     }
 }
