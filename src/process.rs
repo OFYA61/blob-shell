@@ -105,44 +105,25 @@ impl Process {
         // Execute
         match self.kind {
             ProcessKind::Builtin(builtin) => {
-                if let Some(BackgroundProcessInfo { command }) = background_process_info {
-                    let state_clone = state.clone();
-                    let id = state_clone
-                        .lock()
-                        .await
-                        .create_job(std::process::id(), command);
-
-                    tokio::spawn(async move {
-                        let state = state.lock().await;
+                let state_clone = state.clone();
+                track_job(
+                    state,
+                    background_process_info,
+                    std::process::id(),
+                    tasks,
+                    async move {
                         builtin
                             .process(
-                                state,
+                                state_clone.lock().await,
                                 &self.args,
                                 None::<tokio::io::Stdin>,
                                 stdout_tx,
                                 stderr_tx,
                             )
                             .await;
-                        for task in tasks {
-                            let _ = task.await;
-                        }
-                        state_clone.lock().await.mark_job_done(id);
-                    });
-                } else {
-                    let state = state.lock().await;
-                    builtin
-                        .process(
-                            state,
-                            &self.args,
-                            None::<tokio::io::Stdin>,
-                            stdout_tx,
-                            stderr_tx,
-                        )
-                        .await;
-                    for task in tasks {
-                        let _ = task.await;
-                    }
-                }
+                    },
+                )
+                .await;
             }
             ProcessKind::External(exec) => {
                 let mut cmd = Command::new(exec);
@@ -154,26 +135,16 @@ impl Process {
                 let mut child = cmd.spawn().expect("Failed to execute process");
                 bridge_child_streams(&mut child, &mut tasks, None, stdout_tx, stderr_tx);
 
-                if let Some(BackgroundProcessInfo { command }) = background_process_info {
-                    let state_clone = state.clone();
-                    let id = state_clone
-                        .lock()
-                        .await
-                        .create_job(child.id().unwrap_or(0), command);
-
-                    tokio::spawn(async move {
+                track_job(
+                    state,
+                    background_process_info,
+                    child.id().unwrap_or(0),
+                    tasks,
+                    async move {
                         let _ = child.wait().await;
-                        for task in tasks {
-                            let _ = task.await;
-                        }
-                        state_clone.lock().await.mark_job_done(id);
-                    });
-                } else {
-                    let _ = child.wait().await;
-                    for task in tasks {
-                        let _ = task.await;
-                    }
-                }
+                    },
+                )
+                .await;
             }
         };
     }
@@ -368,5 +339,31 @@ fn bridge_child_streams(
         tasks.push(tokio::spawn(async move {
             let _ = tokio::io::copy(&mut child_err, &mut stderr_tx).await;
         }));
+    }
+}
+
+async fn track_job<F>(
+    state: Arc<Mutex<State>>,
+    background_process_info: Option<BackgroundProcessInfo>,
+    pid: u32,
+    tasks: Vec<JoinHandle<()>>,
+    execution: F,
+) where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    if let Some(BackgroundProcessInfo { command }) = background_process_info {
+        let id = state.lock().await.create_job(pid, command);
+        tokio::spawn(async move {
+            execution.await;
+            for task in tasks {
+                let _ = task.await;
+                state.lock().await.mark_job_done(id);
+            }
+        });
+    } else {
+        execution.await;
+        for task in tasks {
+            let _ = task.await;
+        }
     }
 }
