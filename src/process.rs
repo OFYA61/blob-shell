@@ -196,7 +196,7 @@ impl Process {
                     let id = state_clone
                         .lock()
                         .await
-                        .create_job(std::process::id(), command);
+                        .create_job(child.id().unwrap_or(0), command);
 
                     tokio::spawn(async move {
                         let _ = child.wait().await;
