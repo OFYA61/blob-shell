@@ -79,7 +79,7 @@ impl Builtin {
             Builtin::Complete => process_complete(state, args, stdout, stderr).await,
             Builtin::Jobs => process_jobs(state, args, stdout, stderr).await,
             Builtin::History => process_history(state, args, stdout, stderr).await,
-            Builtin::Declare => todo!(),
+            Builtin::Declare => process_declare(state, args, stdout, stderr).await,
             Builtin::Type => process_type(state, args, stdout, stderr).await,
         }
     }
@@ -291,20 +291,20 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
             if let Some(read) = args.read {
                 if let Err(err) = state.read_history_file(read.as_str()).await {
                     let _ = stderr
-                        .write_all(format!("File {} does not exist: {}", read, err).as_bytes())
+                        .write_all(format!("File {} does not exist: {}\n", read, err).as_bytes())
                         .await;
                 }
             } else if let Some(write) = args.write {
                 if let Err(err) = state.write_history_file(write.as_str()).await {
                     let _ = stderr
-                        .write_all(format!("File {} does not exist: {}", write, err).as_bytes())
+                        .write_all(format!("File {} does not exist: {}\n", write, err).as_bytes())
                         .await;
                 }
             } else if let Some(append) = args.append {
                 if let Err(err) = state.append_history_file(append.as_str()).await {
                     let _ = stderr
                         .write_all(
-                            format!("Failed to append to file {}: {}", append, err).as_bytes(),
+                            format!("Failed to append to file {}: {}\n", append, err).as_bytes(),
                         )
                         .await;
                 }
@@ -322,6 +322,44 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                     None
                 };
                 state.print_history(stdout, tail).await;
+            }
+        }
+        Err(err) => {
+            let _ = stderr.write_all(format!("{}\n", err).as_bytes()).await;
+        }
+    };
+
+    let _ = stderr.flush().await;
+}
+
+#[derive(Parser, Debug)]
+#[command(group(
+    clap::ArgGroup::new("mode")
+        .required(true)
+        .args(["print"]),
+))]
+struct DeclareArgs {
+    #[arg(short)]
+    print: Option<String>,
+}
+
+#[inline(always)]
+async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
+    _state: MutexGuard<'_, State>,
+    args: &Vec<String>,
+    _stdout: W,
+    mut stderr: E,
+) {
+    match DeclareArgs::try_parse_from(
+        std::iter::once("declare").chain(args.into_iter().map(|s| s.as_str())),
+    ) {
+        Ok(args) => {
+            if let Some(_print) = args.print {
+                let _ = stderr
+                    .write_all(format!("declare: variable: not found\n").as_bytes())
+                    .await;
+            } else {
+                todo!()
             }
         }
         Err(err) => {
