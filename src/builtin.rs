@@ -386,7 +386,7 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                     if key.chars().nth(0).unwrap_or('0').is_digit(10) {
                         let _ = stderr
                             .write_all(
-                                format!("declare: `{}={}`: not a valid identifier\n", key, value)
+                                format!("declare: `{}={}': not a valid identifier\n", key, value)
                                     .as_bytes(),
                             )
                             .await;
