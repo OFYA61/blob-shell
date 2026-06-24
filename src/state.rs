@@ -278,7 +278,7 @@ impl State {
 
     pub async fn write_history_file(&mut self, file: &str) -> io::Result<()> {
         let mut file = File::create(file).await?;
-        for history in &self.history {
+        for history in self.history.iter().skip(1) {
             file.write_all(format!("{}\n", history).as_bytes()).await?;
         }
         Ok(())
