@@ -383,7 +383,15 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                     let _ = stderr.write_all("declare: wrong format\n".as_bytes()).await;
                 } else {
                     let (key, value) = (split[0], split[1]);
-                    if key.chars().nth(0).unwrap_or('0').is_digit(10) {
+                    let first_char = key.chars().nth(0).unwrap_or('0');
+                    if first_char.is_numeric()
+                        || !key.chars().all(|c| {
+                            ('1' <= c && c <= '9')
+                                || ('a' <= c && c <= 'z')
+                                || ('A' <= c && c <= 'Z')
+                                || c == '_'
+                        })
+                    {
                         let _ = stderr
                             .write_all(
                                 format!("declare: `{}={}': not a valid identifier\n", key, value)
