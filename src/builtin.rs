@@ -24,6 +24,7 @@ fn map() -> &'static HashMap<&'static str, Builtin> {
         m.insert("complete", Builtin::Complete);
         m.insert("jobs", Builtin::Jobs);
         m.insert("history", Builtin::History);
+        m.insert("declare", Builtin::Declare);
         m.insert("type", Builtin::Type);
         m
     })
@@ -47,6 +48,7 @@ pub enum Builtin {
     Complete,
     Jobs,
     History,
+    Declare,
     Type,
 }
 
@@ -77,6 +79,7 @@ impl Builtin {
             Builtin::Complete => process_complete(state, args, stdout, stderr).await,
             Builtin::Jobs => process_jobs(state, args, stdout, stderr).await,
             Builtin::History => process_history(state, args, stdout, stderr).await,
+            Builtin::Declare => todo!(),
             Builtin::Type => process_type(state, args, stdout, stderr).await,
         }
     }
