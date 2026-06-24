@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -69,7 +70,7 @@ impl Builtin {
     {
         match self {
             Builtin::Echo => process_echo(args, stdout).await,
-            Builtin::Exit => process_exit(args, stderr).await,
+            Builtin::Exit => process_exit(state, args, stderr).await,
             Builtin::Cd => process_cd(state, args, stderr).await,
             Builtin::Pwd => process_pwd(state, args, stdout, stderr).await,
             Builtin::Rehash => process_rehash(state, args, stderr).await,
@@ -89,13 +90,27 @@ async fn process_echo<W: AsyncWriteExt + Unpin>(args: &Vec<String>, mut stdout: 
 }
 
 #[inline(always)]
-async fn process_exit<E: AsyncWriteExt + Unpin>(args: &Vec<String>, mut stderr: E) {
+async fn process_exit<E: AsyncWriteExt + Unpin>(
+    mut state: MutexGuard<'_, State>,
+    args: &Vec<String>,
+    mut stderr: E,
+) {
     if !args.is_empty() {
         let _ = stderr
             .write_all("exit: expects no argument\n".as_bytes())
             .await;
         return;
     }
+
+    if let Ok(hist_file) = env::var("HISTFILE") {
+        if let Err(err) = state.append_history_file(hist_file.as_str()).await {
+            let _ = stderr
+                .write_all(format!("Failed to append to file {}: {}", hist_file, err).as_bytes())
+                .await;
+            let _ = stderr.flush().await;
+        }
+    }
+
     // TODO: do not exit if there are running jobs
     std::process::exit(0);
 }
@@ -285,7 +300,9 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
             } else if let Some(append) = args.append {
                 if let Err(err) = state.append_history_file(append.as_str()).await {
                     let _ = stderr
-                        .write_all(format!("File {} does not exist: {}", append, err).as_bytes())
+                        .write_all(
+                            format!("Failed to append to file {}: {}", append, err).as_bytes(),
+                        )
                         .await;
                 }
             } else {
