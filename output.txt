@@ -1,0 +1,9 @@
+cat output.txt
+history
+cat output.txt
+history
+history
+ls
+history
+clear
+exit
