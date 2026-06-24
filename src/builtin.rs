@@ -70,7 +70,7 @@ impl Builtin {
     {
         match self {
             Builtin::Echo => process_echo(args, stdout).await,
-            Builtin::Exit => process_exit(state, args, stdout, stderr).await,
+            Builtin::Exit => process_exit(state, args, stderr).await,
             Builtin::Cd => process_cd(state, args, stderr).await,
             Builtin::Pwd => process_pwd(state, args, stdout, stderr).await,
             Builtin::Rehash => process_rehash(state, args, stderr).await,
@@ -90,10 +90,9 @@ async fn process_echo<W: AsyncWriteExt + Unpin>(args: &Vec<String>, mut stdout: 
 }
 
 #[inline(always)]
-async fn process_exit<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
+async fn process_exit<E: AsyncWriteExt + Unpin>(
     mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    _stdout: W,
     mut stderr: E,
 ) {
     if !args.is_empty() {
@@ -104,7 +103,6 @@ async fn process_exit<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     }
 
     if let Ok(hist_file) = env::var("HISTFILE") {
-        // state.print_history(stdout, None).await;
         if let Err(err) = state.append_history_file(hist_file.as_str()).await {
             let _ = stderr
                 .write_all(format!("Failed to append to file {}: {}", hist_file, err).as_bytes())
