@@ -240,9 +240,17 @@ async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
 }
 
 #[derive(Parser, Debug)]
+#[command(group(
+    clap::ArgGroup::new("mode")
+        .required(false)
+        .args(["read", "write"]),
+))]
 struct HistoryArgs {
     #[arg(short)]
     read: Option<String>,
+
+    #[arg(short)]
+    write: Option<String>,
 
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 1)]
     extra: Vec<String>,
@@ -263,6 +271,13 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                 if let Err(err) = state.append_history_file(read.as_str()).await {
                     let _ = stderr
                         .write_all(format!("File {} does not exist: {}", read, err).as_bytes())
+                        .await;
+                }
+            }
+            if let Some(write) = args.write {
+                if let Err(err) = state.write_history_file(write.as_str()).await {
+                    let _ = stderr
+                        .write_all(format!("File {} does not exist: {}", write, err).as_bytes())
                         .await;
                 }
             } else {
