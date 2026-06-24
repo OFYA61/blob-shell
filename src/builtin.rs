@@ -354,9 +354,9 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
         std::iter::once("declare").chain(args.into_iter().map(|s| s.as_str())),
     ) {
         Ok(args) => {
-            if let Some(_print) = args.print {
+            if let Some(print) = args.print {
                 let _ = stderr
-                    .write_all(format!("declare: variable: not found\n").as_bytes())
+                    .write_all(format!("declare: {}: not found\n", print).as_bytes())
                     .await;
             } else {
                 todo!()
