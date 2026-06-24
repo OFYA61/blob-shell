@@ -6,7 +6,11 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
+use tokio::fs::File;
+use tokio::io;
+use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
+use tokio::io::BufReader;
 
 use crate::autocomplete::Candidate;
 use crate::completer::Completer;
@@ -259,6 +263,16 @@ impl State {
                 .await;
         }
         let _ = stdout.flush().await;
+    }
+
+    pub async fn append_history_file(&mut self, file: &str) -> io::Result<()> {
+        let file = File::open(file).await?;
+        let reader = BufReader::new(file);
+        let mut lines = reader.lines();
+        while let Some(line) = lines.next_line().await? {
+            self.history.push(line);
+        }
+        Ok(())
     }
 }
 

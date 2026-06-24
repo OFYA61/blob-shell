@@ -239,26 +239,52 @@ async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     state.log_jobs(stdout).await;
 }
 
+#[derive(Parser, Debug)]
+struct HistoryArgs {
+    #[arg(short)]
+    read: Option<String>,
+
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 1)]
+    extra: Vec<String>,
+}
+
 #[inline(always)]
 async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
-    state: MutexGuard<'_, State>,
+    mut state: MutexGuard<'_, State>,
     args: &Vec<String>,
     stdout: W,
     mut stderr: E,
 ) {
-    let tail: Option<usize> = if let Some(arg) = args.first() {
-        if let Ok(num) = arg.parse() {
-            Some(num)
-        } else {
-            let _ = stderr
-                .write_all(format!("{} is not a number\n", arg).as_bytes())
-                .await;
-            return;
+    match HistoryArgs::try_parse_from(
+        std::iter::once("history").chain(args.into_iter().map(|s| s.as_str())),
+    ) {
+        Ok(args) => {
+            if let Some(read) = args.read {
+                if let Err(err) = state.append_history_file(read.as_str()).await {
+                    let _ = stderr
+                        .write_all(format!("File {} does not exist: {}", read, err).as_bytes())
+                        .await;
+                }
+            } else {
+                let tail: Option<usize> = if let Some(arg) = args.extra.first() {
+                    if let Ok(num) = arg.parse() {
+                        Some(num)
+                    } else {
+                        let _ = stderr
+                            .write_all(format!("{} is not a number\n", arg).as_bytes())
+                            .await;
+                        return;
+                    }
+                } else {
+                    None
+                };
+                state.print_history(stdout, tail).await;
+            }
         }
-    } else {
-        None
+        Err(err) => {
+            let _ = stderr.write_all(format!("{}\n", err).as_bytes()).await;
+        }
     };
-    state.print_history(stdout, tail).await;
 }
 
 #[inline(always)]
