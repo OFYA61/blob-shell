@@ -308,6 +308,8 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
             let _ = stderr.write_all(format!("{}\n", err).as_bytes()).await;
         }
     };
+
+    let _ = stderr.flush().await;
 }
 
 #[inline(always)]

@@ -1,0 +1,9 @@
+cat output.txt
+clear
+ls
+ls
+history
+history -w output.txt
+cat output.txt
+history
+history -w output.txt

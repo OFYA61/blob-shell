@@ -31,6 +31,7 @@ pub struct State {
 
     jobs: BTreeMap<usize, Job>,
     pub history: Vec<String>,
+    history_last_append_index: usize,
 }
 
 impl State {
@@ -45,6 +46,7 @@ impl State {
                 completers: HashMap::new(),
                 jobs: BTreeMap::new(),
                 history: vec![String::from("")],
+                history_last_append_index: 1,
             };
         }
         let path_var = unsafe { path_var.unwrap_unchecked() };
@@ -74,6 +76,7 @@ impl State {
             completers: HashMap::new(),
             jobs: BTreeMap::new(),
             history: vec![String::from("")],
+            history_last_append_index: 1,
         }
     }
 
@@ -285,10 +288,15 @@ impl State {
     }
 
     pub async fn append_history_file(&mut self, file: &str) -> io::Result<()> {
-        let mut file = OpenOptions::new().append(true).open(file).await?;
-        for history in self.history.iter().skip(1) {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file)
+            .await?;
+        for history in self.history.iter().skip(self.history_last_append_index) {
             file.write_all(format!("{}\n", history).as_bytes()).await?;
         }
+        self.history_last_append_index = self.history.len();
         Ok(())
     }
 }
