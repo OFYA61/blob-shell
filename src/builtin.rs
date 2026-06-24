@@ -383,10 +383,17 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                     let _ = stderr.write_all("declare: wrong format\n".as_bytes()).await;
                 } else {
                     let (key, value) = (split[0], split[1]);
-                    state.add_variable(key, value);
+                    if key.chars().nth(0).unwrap_or('0').is_digit(10) {
+                        let _ = stderr
+                            .write_all(
+                                format!("declare: `{}={}`: not a valid identifier\n", key, value)
+                                    .as_bytes(),
+                            )
+                            .await;
+                    } else {
+                        state.add_variable(key, value);
+                    }
                 }
-            } else {
-                todo!()
             }
         }
         Err(err) => {
