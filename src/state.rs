@@ -7,6 +7,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use tokio::fs::File;
+use tokio::fs::OpenOptions;
 use tokio::io;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
@@ -265,7 +266,7 @@ impl State {
         let _ = stdout.flush().await;
     }
 
-    pub async fn append_history_file(&mut self, file: &str) -> io::Result<()> {
+    pub async fn read_history_file(&mut self, file: &str) -> io::Result<()> {
         let file = File::open(file).await?;
         let reader = BufReader::new(file);
         let mut lines = reader.lines();
@@ -277,6 +278,14 @@ impl State {
 
     pub async fn write_history_file(&mut self, file: &str) -> io::Result<()> {
         let mut file = File::create(file).await?;
+        for history in self.history.iter().skip(1) {
+            file.write_all(format!("{}\n", history).as_bytes()).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn append_history_file(&mut self, file: &str) -> io::Result<()> {
+        let mut file = OpenOptions::new().append(true).open(file).await?;
         for history in self.history.iter().skip(1) {
             file.write_all(format!("{}\n", history).as_bytes()).await?;
         }

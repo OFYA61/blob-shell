@@ -243,7 +243,7 @@ async fn process_jobs<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
 #[command(group(
     clap::ArgGroup::new("mode")
         .required(false)
-        .args(["read", "write"]),
+        .args(["read", "write", "append"]),
 ))]
 struct HistoryArgs {
     #[arg(short)]
@@ -251,6 +251,9 @@ struct HistoryArgs {
 
     #[arg(short)]
     write: Option<String>,
+
+    #[arg(short)]
+    append: Option<String>,
 
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 1)]
     extra: Vec<String>,
@@ -268,7 +271,7 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     ) {
         Ok(args) => {
             if let Some(read) = args.read {
-                if let Err(err) = state.append_history_file(read.as_str()).await {
+                if let Err(err) = state.read_history_file(read.as_str()).await {
                     let _ = stderr
                         .write_all(format!("File {} does not exist: {}", read, err).as_bytes())
                         .await;
@@ -277,6 +280,12 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                 if let Err(err) = state.write_history_file(write.as_str()).await {
                     let _ = stderr
                         .write_all(format!("File {} does not exist: {}", write, err).as_bytes())
+                        .await;
+                }
+            } else if let Some(append) = args.append {
+                if let Err(err) = state.append_history_file(append.as_str()).await {
+                    let _ = stderr
+                        .write_all(format!("File {} does not exist: {}", append, err).as_bytes())
                         .await;
                 }
             } else {
