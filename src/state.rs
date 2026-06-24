@@ -35,36 +35,40 @@ pub struct State {
 }
 
 impl State {
-    pub fn init() -> Self {
+    pub async fn init() -> Self {
         let home = env::var("HOME").expect("Failed to get home environment variable");
-        let path_var = env::var("PATH");
-        if path_var.is_err() {
-            return Self {
-                home,
-                paths: vec![],
-                programs: HashMap::new(),
-                completers: HashMap::new(),
-                jobs: BTreeMap::new(),
-                history: vec![String::from("")],
-                history_last_append_index: 1,
-            };
-        }
-        let path_var = unsafe { path_var.unwrap_unchecked() };
-        let paths = env::split_paths(&path_var).filter(|p| p.is_dir()).collect();
 
+        let paths: Vec<PathBuf>;
         let mut programs = HashMap::new();
-        for path in &paths {
-            if let Ok(entries) = fs::read_dir(&path) {
-                for entry in entries.flatten() {
-                    let p = entry.path();
-                    if p.is_file()
-                        && let Ok(metadata) = fs::metadata(&p)
-                        && metadata.permissions().mode() & 0o111 != 0
-                        && let Some(name) = p.file_name().and_then(|name| name.to_str())
-                        && programs.get(name).is_none()
-                    {
-                        programs.insert(name.to_string(), p);
+        if let Ok(path_var) = env::var("PATH") {
+            paths = env::split_paths(&path_var).filter(|p| p.is_dir()).collect();
+
+            for path in &paths {
+                if let Ok(entries) = fs::read_dir(&path) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_file()
+                            && let Ok(metadata) = fs::metadata(&p)
+                            && metadata.permissions().mode() & 0o111 != 0
+                            && let Some(name) = p.file_name().and_then(|name| name.to_str())
+                            && programs.get(name).is_none()
+                        {
+                            programs.insert(name.to_string(), p);
+                        }
                     }
+                }
+            }
+        } else {
+            paths = vec![];
+        }
+
+        let mut history = vec![String::from("")];
+        if let Ok(hist_file) = env::var("HISTFILE") {
+            if let Ok(file) = File::open(hist_file).await {
+                let reader = BufReader::new(file);
+                let mut lines = reader.lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    history.push(line);
                 }
             }
         }
@@ -75,13 +79,13 @@ impl State {
             programs,
             completers: HashMap::new(),
             jobs: BTreeMap::new(),
-            history: vec![String::from("")],
+            history: history,
             history_last_append_index: 1,
         }
     }
 
-    pub fn reinit(&mut self) {
-        *self = Self::init();
+    pub async fn reinit(&mut self) {
+        *self = Self::init().await;
     }
 
     pub fn get_command(&self, command: &str) -> Option<PathBuf> {

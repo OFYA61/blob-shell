@@ -156,7 +156,7 @@ async fn process_rehash<E: AsyncWriteExt + Unpin>(
             .await;
         return;
     }
-    state.reinit();
+    state.reinit().await;
 }
 
 #[derive(Parser, Debug)]

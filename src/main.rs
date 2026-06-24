@@ -19,7 +19,7 @@ use self::state::State;
 
 #[tokio::main]
 async fn main() {
-    let state = Arc::new(Mutex::new(State::init()));
+    let state = Arc::new(Mutex::new(State::init().await));
 
     loop {
         state
