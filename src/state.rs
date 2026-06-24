@@ -63,24 +63,25 @@ impl State {
         }
 
         let mut history = vec![String::from("")];
+        let mut history_last_append_index = 1;
         if let Ok(hist_file) = env::var("HISTFILE") {
             if let Ok(file) = File::open(hist_file).await {
                 let reader = BufReader::new(file);
                 let mut lines = reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     history.push(line);
+                    history_last_append_index += 1;
                 }
             }
         }
-
         Self {
             home,
             paths,
             programs,
             completers: HashMap::new(),
             jobs: BTreeMap::new(),
-            history: history,
-            history_last_append_index: 1,
+            history,
+            history_last_append_index,
         }
     }
 

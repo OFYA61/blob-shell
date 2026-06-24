@@ -7,3 +7,5 @@ ls
 history
 clear
 exit
+history
+history
