@@ -106,6 +106,7 @@ async fn process_exit<E: AsyncWriteExt + Unpin>(
     }
 
     if let Ok(hist_file) = env::var("HISTFILE") {
+        state.add_history("exit".to_string());
         if let Err(err) = state.append_history_file(hist_file.as_str()).await {
             let _ = stderr
                 .write_all(format!("Failed to append to file {}: {}", hist_file, err).as_bytes())
