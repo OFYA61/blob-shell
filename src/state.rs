@@ -7,7 +7,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use tokio::fs::File;
-use tokio::fs::OpenOptions;
 use tokio::io;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;

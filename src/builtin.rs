@@ -273,8 +273,7 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                         .write_all(format!("File {} does not exist: {}", read, err).as_bytes())
                         .await;
                 }
-            }
-            if let Some(write) = args.write {
+            } else if let Some(write) = args.write {
                 if let Err(err) = state.write_history_file(write.as_str()).await {
                     let _ = stderr
                         .write_all(format!("File {} does not exist: {}", write, err).as_bytes())
