@@ -106,9 +106,8 @@ async fn process_exit<E: AsyncWriteExt + Unpin>(
     }
 
     if let Ok(hist_file) = env::var("HISTFILE") {
-        // TODO: Remove this `state.add_history` statement after codecrafts is no longer a thing, for some reason on that end `exit`
-        // does not show up on the history so I'm adding it manually. Otherwise I get flaky test
-        // results
+        // TODO: Remove after codecrafts is no longer a thing, for some reason on that end `exit`
+        // does not show up on the history so I'm adding it manually
         state.add_history("exit".to_string());
         if let Err(err) = state.append_history_file(hist_file.as_str()).await {
             let _ = stderr
@@ -340,21 +339,18 @@ async fn process_history<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
 #[command(group(
     clap::ArgGroup::new("mode")
         .required(true)
-        .args(["print", "declare"]),
+        .args(["print"]),
 ))]
 struct DeclareArgs {
     #[arg(short)]
     print: Option<String>,
-
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 1)]
-    declare: Vec<String>,
 }
 
 #[inline(always)]
 async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
-    mut state: MutexGuard<'_, State>,
+    _state: MutexGuard<'_, State>,
     args: &Vec<String>,
-    mut stdout: W,
+    _stdout: W,
     mut stderr: E,
 ) {
     match DeclareArgs::try_parse_from(
@@ -362,29 +358,9 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
     ) {
         Ok(args) => {
             if let Some(print) = args.print {
-                if let Some(var) = state.get_variable(&print) {
-                    let _ = stdout
-                        .write_all(format!("declare -- {}=\"{}\"\n", print, var).as_bytes())
-                        .await;
-                } else {
-                    let _ = stderr
-                        .write_all(format!("declare: {}: not found\n", print).as_bytes())
-                        .await;
-                }
-            } else if let Some(store) = args.declare.first() {
-                let contains_whitspaces = store
-                    .chars()
-                    .map(|c| c.is_whitespace())
-                    .find(|b| *b == true)
-                    .unwrap_or(false);
-                let split: Vec<&str> = store.split("=").collect();
-
-                if split.len() != 2 || contains_whitspaces {
-                    let _ = stderr.write_all("declare: wrong format\n".as_bytes()).await;
-                } else {
-                    let (key, value) = (split[0], split[1]);
-                    state.add_variable(key, value);
-                }
+                let _ = stderr
+                    .write_all(format!("declare: {}: not found\n", print).as_bytes())
+                    .await;
             } else {
                 todo!()
             }
@@ -394,7 +370,6 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
         }
     };
 
-    let _ = stdout.flush().await;
     let _ = stderr.flush().await;
 }
 

@@ -42,6 +42,9 @@ async fn main() {
             continue;
         }
 
+        // TODO: Remove this if statement after codecrafts is no longer a thing, for some reason on that end `exit`
+        // does not show up on the history so I'm adding it manually. Otherwise I get flaky test
+        // results
         if !command_raw.contains("exit") {
             state.lock().await.add_history(command_raw.to_string());
         }

@@ -30,8 +30,11 @@ pub struct State {
     completers: HashMap<String, Completer>,
 
     jobs: BTreeMap<usize, Job>,
+
     pub history: Vec<String>,
     history_last_append_index: usize,
+
+    variables: HashMap<String, String>,
 }
 
 impl State {
@@ -83,6 +86,7 @@ impl State {
             jobs: BTreeMap::new(),
             history,
             history_last_append_index,
+            variables: HashMap::new(),
         }
     }
 
@@ -304,6 +308,14 @@ impl State {
         }
         self.history_last_append_index = self.history.len();
         Ok(())
+    }
+
+    pub fn add_variable(&mut self, key: &str, value: &str) {
+        self.variables.insert(key.to_owned(), value.to_owned());
+    }
+
+    pub fn get_variable(&self, key: &str) -> Option<&String> {
+        self.variables.get(key)
     }
 }
 
