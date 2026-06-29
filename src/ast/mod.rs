@@ -99,6 +99,7 @@ async fn process_format(state: Arc<Mutex<State>>, s: &str) -> Result<String, Exp
                     .map(|s| s.as_str())
                     .unwrap_or(""),
             );
+            break;
         }
     }
 

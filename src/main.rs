@@ -59,7 +59,7 @@ async fn main() {
             match expr.kind {
                 ExprKind::Command(command) => match Process::init(state.clone(), &command).await {
                     Ok(process) => {
-                        process
+                        if let Err(err) = process
                             .run(
                                 state.clone(),
                                 if expr.is_background {
@@ -71,7 +71,11 @@ async fn main() {
                                     None
                                 },
                             )
-                            .await;
+                            .await
+                        {
+                            println!("{}", err);
+                            continue;
+                        };
                     }
                     Err(err) => {
                         println!("{}", err);
