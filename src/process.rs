@@ -63,11 +63,13 @@ impl Process {
 
         let mut args = Vec::with_capacity(command.args.len());
         for arg in &command.args {
-            args.push(
-                arg.process(state.clone())
-                    .await
-                    .map_err(|_| ProcessError::MissingClosingBracket)?,
-            );
+            let s = arg
+                .process(state.clone())
+                .await
+                .map_err(|_| ProcessError::MissingClosingBracket)?;
+            if s.len() > 0 {
+                args.push(s);
+            }
         }
 
         Ok(Self {
