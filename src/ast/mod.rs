@@ -88,7 +88,35 @@ async fn process_format(state: Arc<Mutex<State>>, s: &str) -> Result<String, Exp
 
         let c = s.chars().nth(i).unwrap();
         if c == '{' {
-            todo!()
+            i += 1;
+
+            let start = i;
+            let mut closing_found = false;
+
+            while i < s.len() {
+                let c = s.chars().nth(i).unwrap();
+                if c == '}' {
+                    closing_found = true;
+                    break;
+                }
+                // TODO: handle other cases when there is another '{'
+                i += 1;
+            }
+
+            if !closing_found {
+                return Err(ExprArgProcessError::MissingClosingBracket);
+            }
+
+            let var_name = &s[start..i];
+            result.push_str(
+                state
+                    .lock()
+                    .await
+                    .get_variable(var_name)
+                    .map(|s| s.as_str())
+                    .unwrap_or(""),
+            );
+            i += 1;
         } else {
             let var_name = &s[i..];
             result.push_str(
