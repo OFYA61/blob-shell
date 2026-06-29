@@ -67,7 +67,7 @@ impl Process {
                 .process(state.clone())
                 .await
                 .map_err(|_| ProcessError::MissingClosingBracket)?;
-            if s.len() > 0 {
+            if !s.is_empty() {
                 args.push(s);
             }
         }
