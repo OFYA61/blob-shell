@@ -1,9 +1,13 @@
 mod tokenizer;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use tokio::fs::File;
 use tokio::fs::OpenOptions;
+use tokio::sync::Mutex;
+
+use crate::state::State;
 
 use self::tokenizer::Token;
 use self::tokenizer::TokenKind;
@@ -45,11 +49,11 @@ pub enum ExprArg {
 }
 
 impl ExprArg {
-    pub fn process(&self) -> &str {
+    pub async fn process(&self, state: Arc<Mutex<State>>) -> Result<String, ExprArgProcessError> {
         match self {
-            ExprArg::Word(s) => s,
-            ExprArg::Literal(s) => s,
-            ExprArg::Format(s) => s,
+            ExprArg::Word(s) => process_format(state, s).await,
+            ExprArg::Literal(s) => Ok(s.to_owned()),
+            ExprArg::Format(s) => process_format(state, s).await,
         }
     }
 
@@ -61,6 +65,44 @@ impl ExprArg {
             _ => unreachable!("Should never translate {:?} to ExprArg", token.kind),
         }
     }
+}
+
+pub enum ExprArgProcessError {
+    MissingClosingBracket,
+}
+
+async fn process_format(state: Arc<Mutex<State>>, s: &str) -> Result<String, ExprArgProcessError> {
+    let mut result = String::with_capacity(s.len());
+
+    let mut i = 0;
+    while i < s.len() {
+        let c = s.chars().nth(i).unwrap();
+
+        if c != '$' {
+            result.push(c);
+            i += 1;
+            continue;
+        }
+
+        i += 1;
+
+        let c = s.chars().nth(i).unwrap();
+        if c == '{' {
+            todo!()
+        } else {
+            let var_name = &s[i..];
+            result.push_str(
+                state
+                    .lock()
+                    .await
+                    .get_variable(var_name)
+                    .map(|s| s.as_str())
+                    .unwrap_or(""),
+            );
+        }
+    }
+
+    Ok(result)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -114,18 +156,19 @@ impl ExprRedirect {
         }
     }
 
-    pub async fn open_file(&self) -> File {
+    pub async fn open_file(&self, state: Arc<Mutex<State>>) -> Result<File, ExprArgProcessError> {
+        let path = self.arg.process(state).await?;
+        let path = Path::new(&path);
         // TODO: print out error message instead of panicing when file cannot be opened
-        let path = Path::new(self.arg.process());
         if self.is_append() {
-            OpenOptions::new()
+            Ok(OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(path)
                 .await
-                .expect("Failed to open file in append mode")
+                .expect("Failed to open file in append mode"))
         } else {
-            File::create(path).await.expect("Failed to open file")
+            Ok(File::create(path).await.expect("Failed to open file"))
         }
     }
 }

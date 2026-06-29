@@ -44,12 +44,16 @@ impl Process {
         state: Arc<Mutex<State>>,
         command: &ExprCommand,
     ) -> Result<Self, ProcessError> {
-        let exec_str = command.exec.process();
+        let exec_str = command
+            .exec
+            .process(state.clone())
+            .await
+            .map_err(|_| ProcessError::MissingClosingBracket)?;
 
-        let kind = if let Some(builtin) = Builtin::from_str(exec_str) {
+        let kind = if let Some(builtin) = Builtin::from_str(&exec_str) {
             ProcessKind::Builtin(builtin)
-        } else if state.lock().await.get_command(exec_str).is_some() {
-            ProcessKind::External(exec_str.to_owned())
+        } else if state.lock().await.get_command(&exec_str).is_some() {
+            ProcessKind::External(exec_str)
         } else {
             return Err(ProcessError::ProcessNotFound(format!(
                 "{}: command not found",
@@ -57,13 +61,18 @@ impl Process {
             )));
         };
 
+        let mut args = Vec::with_capacity(command.args.len());
+        for arg in &command.args {
+            args.push(
+                arg.process(state.clone())
+                    .await
+                    .map_err(|_| ProcessError::MissingClosingBracket)?,
+            );
+        }
+
         Ok(Self {
             kind,
-            args: command
-                .args
-                .iter()
-                .map(|arg| arg.process().to_owned())
-                .collect(),
+            args,
             redirects: command.redirects.clone(),
             stdin_rx: None,
             stdout_tx: None,
@@ -75,14 +84,15 @@ impl Process {
         self,
         state: Arc<Mutex<State>>,
         background_process_info: Option<BackgroundProcessInfo>,
-    ) {
+    ) -> Result<(), ProcessError> {
         let mut tasks: Vec<JoinHandle<()>> = Vec::new();
 
         // Setup I/O and file redirection
         let (stdout_rx, stdout_tx) = tokio::io::duplex(8192);
         let (stderr_rx, stderr_tx) = tokio::io::duplex(8192);
 
-        let (stdout_files, stderr_files) = open_redirect_files(&self.redirects).await;
+        let (stdout_files, stderr_files) =
+            open_redirect_files(state.clone(), &self.redirects).await?;
 
         let stdout: Option<Box<dyn AsyncWrite + Unpin + Send>> = if stdout_files.is_empty() {
             Some(Box::new(tokio::io::stdout()))
@@ -147,18 +157,22 @@ impl Process {
                 .await;
             }
         };
+
+        Ok(())
     }
 }
 
 #[derive(Debug)]
 pub enum ProcessError {
     ProcessNotFound(String),
+    MissingClosingBracket,
 }
 
 impl Display for ProcessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProcessError::ProcessNotFound(msg) => f.write_str(msg),
+            ProcessError::MissingClosingBracket => f.write_str("Missing closing '}'"),
         }
     }
 }
@@ -193,7 +207,8 @@ pub async fn run_pipeline(
 
         let is_last = i == len - 1;
 
-        let (stdout_files, stderr_files) = open_redirect_files(&command.redirects).await;
+        let (stdout_files, stderr_files) =
+            open_redirect_files(state.clone(), &command.redirects).await?;
 
         let extra_stdout_dest: Option<Box<dyn AsyncWrite + Unpin + Send>> = if !is_last {
             let (next_in_rx, next_in_tx) = tokio::io::duplex(8192);
@@ -268,11 +283,17 @@ pub async fn run_pipeline(
     Ok(())
 }
 
-async fn open_redirect_files(redirects: &Vec<ExprRedirect>) -> (Vec<File>, Vec<File>) {
+async fn open_redirect_files(
+    state: Arc<Mutex<State>>,
+    redirects: &Vec<ExprRedirect>,
+) -> Result<(Vec<File>, Vec<File>), ProcessError> {
     let mut stdout_files = Vec::new();
     let mut stderr_files = Vec::new();
     for redirect in redirects {
-        let file = redirect.open_file().await;
+        let file = redirect
+            .open_file(state.clone())
+            .await
+            .map_err(|_| ProcessError::MissingClosingBracket)?;
         if redirect.is_stdout() {
             stdout_files.push(file);
         } else if redirect.is_stderr() {
@@ -282,7 +303,7 @@ async fn open_redirect_files(redirects: &Vec<ExprRedirect>) -> (Vec<File>, Vec<F
         }
     }
 
-    (stdout_files, stderr_files)
+    Ok((stdout_files, stderr_files))
 }
 
 async fn multiplex_stream<R>(
