@@ -2,11 +2,13 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use clap::Parser;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::MutexGuard;
+use tokio::time::sleep;
 
 use crate::autocomplete::Candidate;
 use crate::state::ChangeDirError;
@@ -110,6 +112,7 @@ async fn process_exit<E: AsyncWriteExt + Unpin>(
         // does not show up on the history so I'm adding it manually. Otherwise I get flaky test
         // results
         state.add_history("exit".to_string());
+        sleep(Duration::new(1, 0)).await;
         if let Err(err) = state.append_history_file(hist_file.as_str()).await {
             let _ = stderr
                 .write_all(format!("Failed to append to file {}: {}", hist_file, err).as_bytes())
