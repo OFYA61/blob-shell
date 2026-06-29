@@ -112,13 +112,13 @@ async fn process_exit<E: AsyncWriteExt + Unpin>(
         // does not show up on the history so I'm adding it manually. Otherwise I get flaky test
         // results
         state.add_history("exit".to_string());
-        sleep(Duration::new(1, 0)).await;
         if let Err(err) = state.append_history_file(hist_file.as_str()).await {
             let _ = stderr
                 .write_all(format!("Failed to append to file {}: {}", hist_file, err).as_bytes())
                 .await;
             let _ = stderr.flush().await;
         }
+        sleep(Duration::new(1, 0)).await;
     }
 
     // TODO: do not exit if there are running jobs
