@@ -386,7 +386,7 @@ async fn process_declare<W: AsyncWriteExt + Unpin, E: AsyncWriteExt + Unpin>(
                     let first_char = key.chars().nth(0).unwrap_or('0');
                     if first_char.is_numeric()
                         || !key.chars().all(|c| {
-                            ('1' <= c && c <= '9')
+                            ('0' <= c && c <= '9')
                                 || ('a' <= c && c <= 'z')
                                 || ('A' <= c && c <= 'Z')
                                 || c == '_'
